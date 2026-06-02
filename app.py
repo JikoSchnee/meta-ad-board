@@ -626,46 +626,13 @@ def render_funnel(df: pd.DataFrame) -> None:
     cpa = total_spend / total_purchases if total_purchases else 0
     cpa_term = glossary_term("CPA")
 
-    st.markdown(
-        f"""
-        <div class="funnel-metrics">
-            <div class="funnel-metric">
-                <div class="funnel-label">链接点击量</div>
-                <div class="funnel-value">{number(total_clicks)}</div>
-                <div class="funnel-rate">漏斗入口</div>
-            </div>
-            <div class="funnel-metric">
-                <div class="funnel-label">加购次数 / 加购率</div>
-                <div class="funnel-value">{number(total_atc)}</div>
-                <div class="funnel-rate">{percentage(atc_rate)} · 加购 ÷ 点击</div>
-            </div>
-            <div class="funnel-metric">
-                <div class="funnel-label">发起结账次数 / 发起结账率</div>
-                <div class="funnel-value">{number(total_checkout)}</div>
-                <div class="funnel-rate">{percentage(checkout_rate)} · 结账 ÷ 加购</div>
-            </div>
-            <div class="funnel-metric">
-                <div class="funnel-label">购物次数 / 购物完成率</div>
-                <div class="funnel-value">{number(total_purchases)}</div>
-                <div class="funnel-rate">{percentage(purchase_completion_rate)} · 购物 ÷ 结账</div>
-            </div>
-            <div class="funnel-metric">
-                <div class="funnel-label">单次成效费用 {cpa_term}</div>
-                <div class="funnel-value">{money(cpa)}</div>
-                <div class="funnel-rate">花费 ÷ 购物次数</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
     steps = pd.DataFrame(
         {
             "环节": [
                 "链接点击量",
-                f"加购次数 / 加购率 {percentage(atc_rate)}",
-                f"发起结账次数 / 发起结账率 {percentage(checkout_rate)}",
-                f"购物次数 / 购物完成率 {percentage(purchase_completion_rate)}",
+                "加购次数",
+                "发起结账次数",
+                "购物次数",
             ],
             "数量": [
                 total_clicks,
@@ -682,7 +649,7 @@ def render_funnel(df: pd.DataFrame) -> None:
         color="环节",
         color_discrete_sequence=["#275f8f", "#236a4e", "#b6641f", "#a53d2f"],
     )
-    fig.update_traces(textinfo="value+percent previous")
+    fig.update_traces(textinfo="value")
     fig.update_layout(
         height=430,
         margin=dict(l=10, r=10, t=20, b=10),
@@ -690,7 +657,38 @@ def render_funnel(df: pd.DataFrame) -> None:
         paper_bgcolor="#fffefa",
         showlegend=False,
     )
-    st.plotly_chart(fig, use_container_width=True)
+
+    chart_col, metric_col = st.columns([1.65, 1])
+    with chart_col:
+        st.plotly_chart(fig, use_container_width=True)
+    with metric_col:
+        st.markdown(
+            f"""
+            <div class="funnel-metrics">
+                <div class="funnel-metric">
+                    <div class="funnel-label">加购率</div>
+                    <div class="funnel-value">{percentage(atc_rate)}</div>
+                    <div class="funnel-rate">加购次数 {number(total_atc)} / 链接点击量 {number(total_clicks)}</div>
+                </div>
+                <div class="funnel-metric">
+                    <div class="funnel-label">发起结账率</div>
+                    <div class="funnel-value">{percentage(checkout_rate)}</div>
+                    <div class="funnel-rate">发起结账次数 {number(total_checkout)} / 加购次数 {number(total_atc)}</div>
+                </div>
+                <div class="funnel-metric">
+                    <div class="funnel-label">购物完成率</div>
+                    <div class="funnel-value">{percentage(purchase_completion_rate)}</div>
+                    <div class="funnel-rate">购物次数 {number(total_purchases)} / 发起结账次数 {number(total_checkout)}</div>
+                </div>
+                <div class="funnel-metric">
+                    <div class="funnel-label">单次成效费用 {cpa_term}</div>
+                    <div class="funnel-value">{money(cpa)}</div>
+                    <div class="funnel-rate">总花费 {money(total_spend)} / 购物次数 {number(total_purchases)}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def render_dimension_rank(df: pd.DataFrame) -> None:
