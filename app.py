@@ -271,8 +271,47 @@ def inject_css() -> None:
             line-height: 1.55;
         }
 
+        .funnel-metrics {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 10px;
+            margin: 10px 0 14px 0;
+        }
+
+        .funnel-metric {
+            border: 1px solid var(--line);
+            background: var(--panel);
+            padding: 13px 14px;
+            min-height: 104px;
+        }
+
+        .funnel-label {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.35;
+            margin-bottom: 9px;
+        }
+
+        .funnel-value {
+            color: var(--ink);
+            font-size: 23px;
+            font-weight: 760;
+            line-height: 1.12;
+        }
+
+        .funnel-rate {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 8px;
+            line-height: 1.35;
+        }
+
         @media (max-width: 980px) {
             .kpi-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .funnel-metrics {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
@@ -283,6 +322,10 @@ def inject_css() -> None:
             }
 
             .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .funnel-metrics {
                 grid-template-columns: 1fr;
             }
         }
@@ -571,15 +614,64 @@ def render_efficiency_chart(daily_df: pd.DataFrame) -> None:
 
 
 def render_funnel(df: pd.DataFrame) -> None:
+    total_spend = float(df[SPEND_COL].sum())
+    total_clicks = float(df[CLICKS_COL].sum())
+    total_atc = float(df[ATC_COL].sum())
+    total_checkout = float(df[CHECKOUT_COL].sum())
+    total_purchases = float(df[PURCHASES_COL].sum())
+
+    atc_rate = total_atc / total_clicks * 100 if total_clicks else 0
+    checkout_rate = total_checkout / total_atc * 100 if total_atc else 0
+    purchase_completion_rate = total_purchases / total_checkout * 100 if total_checkout else 0
+    cpa = total_spend / total_purchases if total_purchases else 0
+    cpa_term = glossary_term("CPA")
+
+    st.markdown(
+        f"""
+        <div class="funnel-metrics">
+            <div class="funnel-metric">
+                <div class="funnel-label">链接点击量</div>
+                <div class="funnel-value">{number(total_clicks)}</div>
+                <div class="funnel-rate">漏斗入口</div>
+            </div>
+            <div class="funnel-metric">
+                <div class="funnel-label">加购次数 / 加购率</div>
+                <div class="funnel-value">{number(total_atc)}</div>
+                <div class="funnel-rate">{percentage(atc_rate)} · 加购 ÷ 点击</div>
+            </div>
+            <div class="funnel-metric">
+                <div class="funnel-label">发起结账次数 / 发起结账率</div>
+                <div class="funnel-value">{number(total_checkout)}</div>
+                <div class="funnel-rate">{percentage(checkout_rate)} · 结账 ÷ 加购</div>
+            </div>
+            <div class="funnel-metric">
+                <div class="funnel-label">购物次数 / 购物完成率</div>
+                <div class="funnel-value">{number(total_purchases)}</div>
+                <div class="funnel-rate">{percentage(purchase_completion_rate)} · 购物 ÷ 结账</div>
+            </div>
+            <div class="funnel-metric">
+                <div class="funnel-label">单次成效费用 {cpa_term}</div>
+                <div class="funnel-value">{money(cpa)}</div>
+                <div class="funnel-rate">花费 ÷ 购物次数</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     steps = pd.DataFrame(
         {
-            "环节": ["展示", "链接点击", "加入购物车", "发起结账", "购买成效"],
+            "环节": [
+                "链接点击量",
+                f"加购次数 / 加购率 {percentage(atc_rate)}",
+                f"发起结账次数 / 发起结账率 {percentage(checkout_rate)}",
+                f"购物次数 / 购物完成率 {percentage(purchase_completion_rate)}",
+            ],
             "数量": [
-                df[IMPRESSIONS_COL].sum(),
-                df[CLICKS_COL].sum(),
-                df[ATC_COL].sum(),
-                df[CHECKOUT_COL].sum(),
-                df[PURCHASES_COL].sum(),
+                total_clicks,
+                total_atc,
+                total_checkout,
+                total_purchases,
             ],
         }
     )
@@ -588,7 +680,7 @@ def render_funnel(df: pd.DataFrame) -> None:
         x="数量",
         y="环节",
         color="环节",
-        color_discrete_sequence=["#275f8f", "#236a4e", "#b6641f", "#8d5a7b", "#a53d2f"],
+        color_discrete_sequence=["#275f8f", "#236a4e", "#b6641f", "#a53d2f"],
     )
     fig.update_traces(textinfo="value+percent previous")
     fig.update_layout(
@@ -862,7 +954,7 @@ def main() -> None:
         render_efficiency_chart(daily_df)
 
     with tab_funnel:
-        render_section_title("电商转化漏斗")
+        render_section_title(f"广告转化漏斗与单次成效费用 {glossary_term('CPA')}")
         render_funnel(filtered_df)
         render_section_title("自动化诊断与策略建议")
         render_suggestions(filtered_df, daily_df)
