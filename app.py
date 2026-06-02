@@ -893,6 +893,91 @@ def render_cpa_change_table(daily_df: pd.DataFrame) -> None:
     )
 
 
+def render_custom_compare(daily_df: pd.DataFrame) -> None:
+    metric_options = {
+        "花费 (USD)": SPEND_COL,
+        "展示次数": IMPRESSIONS_COL,
+        "覆盖人数": REACH_COL,
+        "点击量": ALL_CLICKS_COL,
+        "链接点击量": CLICKS_COL,
+        "落地页浏览量": LANDING_PAGE_VIEWS_COL,
+        "加购次数": ATC_COL,
+        "发起结账次数": CHECKOUT_COL,
+        "购买次数": PURCHASES_COL,
+        "CTR (%)": "整体CTR (%)",
+        "CPC (USD)": "CPC (USD)",
+        "CPM (USD)": "CPM (USD)",
+        "CVR 点击到购买 (%)": "CVR 点击到购买 (%)",
+        "CPA (USD)": "CPA 购买成本 (USD)",
+        "ROAS": ROAS_COL,
+    }
+    available_options = {
+        label: column for label, column in metric_options.items() if column in daily_df.columns
+    }
+
+    selected_labels = st.multiselect(
+        "选择要对比的数据",
+        list(available_options.keys()),
+        default=["花费 (USD)", "链接点击量", "购买次数", "CPA (USD)"],
+        help="选择多个指标后，会在同一张图中按日期对比。",
+    )
+    selected_labels = [label for label in selected_labels if label in available_options]
+
+    if not selected_labels:
+        st.warning("请至少选择一个指标。")
+        return
+
+    mode = st.radio(
+        "对比模式",
+        ["标准化对比", "原始数值对比"],
+        horizontal=True,
+        help="标准化会把每个指标缩放到 0-100，适合不同量级一起比较。",
+    )
+
+    compare_df = daily_df[[DATE_COL] + [available_options[label] for label in selected_labels]].copy()
+    compare_df = compare_df.rename(columns={available_options[label]: label for label in selected_labels})
+
+    plot_df = compare_df.copy()
+    y_title = "数值"
+    if mode == "标准化对比":
+        for label in selected_labels:
+            max_value = plot_df[label].max()
+            plot_df[label] = plot_df[label] / max_value * 100 if max_value else 0
+        y_title = "标准化指数 (0-100)"
+
+    long_df = plot_df.melt(
+        id_vars=DATE_COL,
+        value_vars=selected_labels,
+        var_name="指标",
+        value_name="数值",
+    )
+    fig = px.line(
+        long_df,
+        x=DATE_COL,
+        y="数值",
+        color="指标",
+        markers=True,
+        color_discrete_sequence=["#0066cc", "#34a853", "#fbbc04", "#ea4335", "#8e44ad", "#00a0b0"],
+    )
+    fig.update_layout(
+        height=460,
+        margin=dict(l=10, r=10, t=16, b=10),
+        plot_bgcolor="#fffefa",
+        paper_bgcolor="#fffefa",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        xaxis=dict(title="", showgrid=False),
+        yaxis=dict(title=y_title, gridcolor="rgba(24,32,42,0.08)"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.dataframe(
+        compare_df.sort_values(DATE_COL, ascending=False),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
 def build_funnel_figure(steps: pd.DataFrame) -> go.Figure:
     steps = steps.copy()
     rates = []
@@ -1298,8 +1383,8 @@ def main() -> None:
     render_data_quality(filtered_df)
     render_kpis(daily_df)
 
-    tab_overview, tab_funnel, tab_rank, tab_raw = st.tabs(
-        ["趋势效率", "转化漏斗", "广告排行", "明细导出"]
+    tab_overview, tab_compare, tab_funnel, tab_rank, tab_raw = st.tabs(
+        ["趋势效率", "自定义对比", "转化漏斗", "广告排行", "明细导出"]
     )
 
     with tab_overview:
@@ -1309,6 +1394,10 @@ def main() -> None:
         render_efficiency_chart(daily_df)
         render_section_title(f"单次成效费用 {glossary_term('CPA')} 变化表")
         render_cpa_change_table(daily_df)
+
+    with tab_compare:
+        render_section_title("自定义数据对比")
+        render_custom_compare(daily_df)
 
     with tab_funnel:
         render_section_title(f"广告转化漏斗与单次成效费用 {glossary_term('CPA')}")
