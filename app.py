@@ -353,11 +353,45 @@ def inject_css() -> None:
             font-size: 13px;
         }
 
+        [data-testid="stNumberInput"] input,
+        [data-testid="stTextInput"] input,
+        [data-baseweb="select"] > div,
+        [data-baseweb="input"] > div {
+            background: #f7f9fb !important;
+            border-color: var(--meta-hairline) !important;
+            color: var(--meta-ink-deep) !important;
+            box-shadow: inset 0 0 0 1px rgba(10, 19, 23, 0.03);
+        }
+
+        [data-testid="stNumberInput"] input,
+        [data-testid="stTextInput"] input,
+        [data-baseweb="select"] span,
+        [data-baseweb="select"] input,
+        [data-baseweb="select"] div,
+        [data-baseweb="input"] input {
+            color: var(--meta-ink-deep) !important;
+            -webkit-text-fill-color: var(--meta-ink-deep) !important;
+        }
+
+        [data-baseweb="select"] svg,
+        [data-baseweb="input"] svg {
+            color: var(--meta-charcoal) !important;
+            fill: var(--meta-charcoal) !important;
+        }
+
         [data-testid="stMultiSelect"] [data-baseweb="tag"] {
             margin: 2px;
             height: 24px;
             border-radius: 100px;
-            background: var(--meta-soft);
+            background: #e8f1ff;
+            border: 1px solid rgba(0, 100, 224, 0.18);
+            color: var(--meta-primary-deep) !important;
+        }
+
+        [data-testid="stMultiSelect"] [data-baseweb="tag"] span {
+            color: var(--meta-primary-deep) !important;
+            -webkit-text-fill-color: var(--meta-primary-deep) !important;
+            font-weight: 700;
         }
 
         [data-testid="stCheckbox"] {
