@@ -273,37 +273,114 @@ def inject_css() -> None:
 
         .funnel-metrics {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
-            gap: 10px;
-            margin: 10px 0 14px 0;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin: 0;
         }
 
         .funnel-metric {
-            border: 1px solid var(--line);
-            background: var(--panel);
-            padding: 13px 14px;
-            min-height: 104px;
+            border: 1px solid #e0e0e0;
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 18px;
+            min-height: 118px;
         }
 
         .funnel-label {
-            color: var(--muted);
-            font-size: 12px;
+            color: #6e6e73;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            font-weight: 400;
             line-height: 1.35;
-            margin-bottom: 9px;
+            letter-spacing: -0.224px;
+            margin-bottom: 10px;
         }
 
         .funnel-value {
-            color: var(--ink);
-            font-size: 23px;
-            font-weight: 760;
+            color: #1d1d1f;
+            font-family: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 34px;
+            font-weight: 600;
             line-height: 1.12;
+            letter-spacing: -0.374px;
         }
 
         .funnel-rate {
-            color: var(--muted);
+            color: #6e6e73;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
             font-size: 12px;
-            margin-top: 8px;
-            line-height: 1.35;
+            font-weight: 400;
+            margin-top: 10px;
+            line-height: 1.42;
+            letter-spacing: -0.12px;
+        }
+
+        .apple-funnel-stage {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 5px 12px;
+            border-radius: 9999px;
+            background: #f5f5f7;
+            color: #1d1d1f;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 13px;
+            font-weight: 400;
+            letter-spacing: -0.12px;
+            margin-bottom: 12px;
+        }
+
+        .apple-funnel-panel {
+            background: #f5f5f7;
+            border-radius: 18px;
+            padding: 22px;
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .apple-funnel-title {
+            color: #1d1d1f;
+            font-family: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+            line-height: 1.15;
+            letter-spacing: -0.28px;
+            margin: 0 0 4px 0;
+        }
+
+        .apple-funnel-copy {
+            color: #6e6e73;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 1.45;
+            letter-spacing: -0.224px;
+            margin: 0 0 16px 0;
+        }
+
+        .apple-rate-title {
+            color: #1d1d1f;
+            font-family: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+            line-height: 1.15;
+            letter-spacing: -0.28px;
+            margin: 0 0 12px 0;
+        }
+
+        .apple-rate-bar {
+            width: 100%;
+            height: 6px;
+            border-radius: 9999px;
+            background: #e8e8ed;
+            overflow: hidden;
+            margin-top: 14px;
+        }
+
+        .apple-rate-fill {
+            display: block;
+            height: 100%;
+            border-radius: 9999px;
+            background: #0066cc;
         }
 
         @media (max-width: 980px) {
@@ -613,6 +690,36 @@ def render_efficiency_chart(daily_df: pd.DataFrame) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
+def build_funnel_figure(steps: pd.DataFrame) -> go.Figure:
+    fig = px.funnel(
+        steps,
+        x="数量",
+        y="环节",
+        color="环节",
+        color_discrete_sequence=["#0066cc", "#4d9de0", "#8bbce8", "#c7d9ec"],
+    )
+    fig.update_traces(textinfo="value")
+    fig.update_layout(
+        height=360,
+        margin=dict(l=4, r=4, t=8, b=4),
+        plot_bgcolor="#f5f5f7",
+        paper_bgcolor="#f5f5f7",
+        showlegend=False,
+        font=dict(
+            family="SF Pro Text, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+            color="#1d1d1f",
+            size=13,
+        ),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=""),
+        yaxis=dict(title=""),
+    )
+    return fig
+
+
+def bounded_percent(value: float) -> float:
+    return max(0.0, min(100.0, value))
+
+
 def render_funnel(df: pd.DataFrame) -> None:
     total_spend = float(df[SPEND_COL].sum())
     total_clicks = float(df[CLICKS_COL].sum())
@@ -626,7 +733,7 @@ def render_funnel(df: pd.DataFrame) -> None:
     cpa = total_spend / total_purchases if total_purchases else 0
     cpa_term = glossary_term("CPA")
 
-    steps = pd.DataFrame(
+    full_steps = pd.DataFrame(
         {
             "环节": [
                 "链接点击量",
@@ -642,43 +749,72 @@ def render_funnel(df: pd.DataFrame) -> None:
             ],
         }
     )
-    fig = px.funnel(
-        steps,
-        x="数量",
-        y="环节",
-        color="环节",
-        color_discrete_sequence=["#275f8f", "#236a4e", "#b6641f", "#a53d2f"],
-    )
-    fig.update_traces(textinfo="value")
-    fig.update_layout(
-        height=430,
-        margin=dict(l=10, r=10, t=20, b=10),
-        plot_bgcolor="#fffefa",
-        paper_bgcolor="#fffefa",
-        showlegend=False,
+
+    checkout_steps = pd.DataFrame(
+        {
+            "环节": [
+                "链接点击量",
+                "发起结账次数",
+                "购物次数",
+            ],
+            "数量": [
+                total_clicks,
+                total_checkout,
+                total_purchases,
+            ],
+        }
     )
 
-    chart_col, metric_col = st.columns([1.65, 1])
-    with chart_col:
-        st.plotly_chart(fig, use_container_width=True)
+    full_fig = build_funnel_figure(full_steps)
+    checkout_fig = build_funnel_figure(checkout_steps)
+
+    chart_col_a, chart_col_b, metric_col = st.columns([1.1, 1.1, 0.86])
+    with chart_col_a:
+        st.markdown(
+            """
+            <div class="apple-funnel-panel">
+                <div class="apple-funnel-stage">含加购路径</div>
+                <div class="apple-funnel-title">点击到购买</div>
+                <p class="apple-funnel-copy">链接点击量、加购次数、发起结账次数、购物次数。</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.plotly_chart(full_fig, use_container_width=True)
+    with chart_col_b:
+        st.markdown(
+            """
+            <div class="apple-funnel-panel">
+                <div class="apple-funnel-stage">无加购路径</div>
+                <div class="apple-funnel-title">点击到结账</div>
+                <p class="apple-funnel-copy">适合查看未配置加购事件或直接结账链路。</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.plotly_chart(checkout_fig, use_container_width=True)
     with metric_col:
         st.markdown(
             f"""
+            <div class="apple-rate-title">转化率</div>
             <div class="funnel-metrics">
                 <div class="funnel-metric">
                     <div class="funnel-label">加购率</div>
                     <div class="funnel-value">{percentage(atc_rate)}</div>
                     <div class="funnel-rate">加购次数 {number(total_atc)} / 链接点击量 {number(total_clicks)}</div>
+                    <div class="apple-rate-bar"><span class="apple-rate-fill" style="width:{bounded_percent(atc_rate):.2f}%;"></span></div>
                 </div>
                 <div class="funnel-metric">
                     <div class="funnel-label">发起结账率</div>
                     <div class="funnel-value">{percentage(checkout_rate)}</div>
                     <div class="funnel-rate">发起结账次数 {number(total_checkout)} / 加购次数 {number(total_atc)}</div>
+                    <div class="apple-rate-bar"><span class="apple-rate-fill" style="width:{bounded_percent(checkout_rate):.2f}%;"></span></div>
                 </div>
                 <div class="funnel-metric">
                     <div class="funnel-label">购物完成率</div>
                     <div class="funnel-value">{percentage(purchase_completion_rate)}</div>
                     <div class="funnel-rate">购物次数 {number(total_purchases)} / 发起结账次数 {number(total_checkout)}</div>
+                    <div class="apple-rate-bar"><span class="apple-rate-fill" style="width:{bounded_percent(purchase_completion_rate):.2f}%;"></span></div>
                 </div>
                 <div class="funnel-metric">
                     <div class="funnel-label">单次成效费用 {cpa_term}</div>
