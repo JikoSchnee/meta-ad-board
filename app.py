@@ -546,6 +546,88 @@ def inject_css() -> None:
             text-align: right;
         }
 
+        .compare-style-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 10px 0 14px 0;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+            border-radius: 18px;
+            background: #ffffff;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .compare-style-table th,
+        .compare-style-table td {
+            border-bottom: 1px solid #f0f0f0;
+            border-right: 1px solid #f0f0f0;
+            padding: 10px 12px;
+            color: #1d1d1f;
+            font-size: 12px;
+            letter-spacing: -0.12px;
+            vertical-align: middle;
+        }
+
+        .compare-style-table th {
+            background: #f5f5f7;
+            color: #6e6e73;
+            font-weight: 600;
+        }
+
+        .compare-style-table tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .compare-style-table th:last-child,
+        .compare-style-table td:last-child {
+            border-right: 0;
+        }
+
+        .style-swatch {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            white-space: nowrap;
+        }
+
+        .style-line {
+            width: 34px;
+            height: 0;
+            border-top-width: 3px;
+            border-top-style: solid;
+            display: inline-block;
+        }
+
+        .style-marker {
+            width: 10px;
+            height: 10px;
+            display: inline-block;
+            background: currentColor;
+        }
+
+        .style-marker.circle {
+            border-radius: 50%;
+        }
+
+        .style-marker.square {
+            border-radius: 2px;
+        }
+
+        .style-marker.diamond {
+            transform: rotate(45deg);
+            border-radius: 2px;
+        }
+
+        .style-marker.triangle-up {
+            width: 0;
+            height: 0;
+            background: transparent;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 11px solid currentColor;
+        }
+
         [data-testid="stRadio"] {
             margin: 4px 0 18px 0;
         }
@@ -1053,7 +1135,12 @@ def aggregate_compare_by_date(df: pd.DataFrame, group_cols: list[str] | None = N
     return grouped.drop(columns=["_roas_value", "_video_3s_rate_value", "_video_avg_time_value"])
 
 
-def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> None:
+COMPARE_COLORS = ["#0066cc", "#34a853", "#fbbc04", "#ea4335", "#8e44ad", "#00a0b0", "#1d1d1f"]
+COMPARE_DASHES = ["solid", "dash", "dot", "dashdot", "longdash", "longdashdot"]
+COMPARE_SYMBOLS = ["circle", "square", "diamond", "triangle-up", "cross", "x"]
+
+
+def get_compare_metric_options(daily_df: pd.DataFrame) -> dict[str, str]:
     compare_numeric_columns = daily_df.attrs.get("compare_numeric_columns", NUMERIC_COLUMNS)
     selectable_columns = set(compare_numeric_columns) | DERIVED_COMPARE_COLUMNS
     metric_options = {
@@ -1088,19 +1175,80 @@ def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> 
         for label, column in metric_options.items()
         if column in daily_df.columns and column in selectable_columns
     }
+    return available_options
+
+
+def render_compare_style_table(selected_labels: list[str], selected_ad_names: list[str]) -> None:
+    marker_class = {
+        "circle": "circle",
+        "square": "square",
+        "diamond": "diamond",
+        "triangle-up": "triangle-up",
+        "cross": "square",
+        "x": "diamond",
+    }
+    header_cells = "".join(f"<th>{ad_name}</th>" for ad_name in selected_ad_names)
+    rows = []
+    for metric_index, metric in enumerate(selected_labels):
+        color = COMPARE_COLORS[metric_index % len(COMPARE_COLORS)]
+        cells = []
+        for ad_index, _ad_name in enumerate(selected_ad_names):
+            dash = COMPARE_DASHES[ad_index % len(COMPARE_DASHES)]
+            symbol = COMPARE_SYMBOLS[ad_index % len(COMPARE_SYMBOLS)]
+            border_style = {
+                "solid": "solid",
+                "dash": "dashed",
+                "dot": "dotted",
+                "dashdot": "dashed",
+                "longdash": "dashed",
+                "longdashdot": "dashed",
+            }[dash]
+            cells.append(
+                f"""
+                <td>
+                    <span class="style-swatch" style="color:{color};">
+                        <span class="style-line" style="border-top-color:{color}; border-top-style:{border_style};"></span>
+                        <span class="style-marker {marker_class.get(symbol, 'circle')}"></span>
+                    </span>
+                </td>
+                """
+            )
+        rows.append(f"<tr><th>{metric}</th>{''.join(cells)}</tr>")
+
+    st.markdown(
+        f"""
+        <table class="compare-style-table">
+            <thead><tr><th>指标 / 广告名称</th>{header_cells}</tr></thead>
+            <tbody>{''.join(rows)}</tbody>
+        </table>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_custom_compare_panel(
+    filtered_df: pd.DataFrame,
+    daily_df: pd.DataFrame,
+    available_options: dict[str, str],
+    panel_index: int,
+) -> None:
+    key_prefix = f"compare_{panel_index}"
 
     compare_scope = st.radio(
         "对比范围",
         ["总量对比", "按广告名称对比"],
         horizontal=True,
         help="总量对比会汇总所有广告；按广告名称对比会把不同广告名称拆成多条线。",
+        key=f"{key_prefix}_scope",
     )
 
+    default_labels = [label for label in ["花费 (USD)", "链接点击量", "购买次数", "CPA (USD)"] if label in available_options]
     selected_labels = st.multiselect(
         "选择要对比的数据",
         list(available_options.keys()),
-        default=["花费 (USD)", "链接点击量", "购买次数", "CPA (USD)"],
+        default=default_labels[: min(4, len(default_labels))],
         help="选择多个指标后，会在同一张图中按日期对比。",
+        key=f"{key_prefix}_metrics",
     )
     selected_labels = [label for label in selected_labels if label in available_options]
 
@@ -1125,6 +1273,7 @@ def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> 
             ad_options,
             default=ad_options[: min(5, len(ad_options))],
             help="建议一次选择 3-5 个广告，图表更清楚。",
+            key=f"{key_prefix}_ads",
         )
         if not selected_ad_names:
             st.warning("请至少选择一个广告名称。")
@@ -1135,6 +1284,7 @@ def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> 
         ["标准化对比", "原始数值对比"],
         horizontal=True,
         help="标准化会把每个指标缩放到 0-100，适合不同量级一起比较。",
+        key=f"{key_prefix}_mode",
     )
 
     if compare_scope == "总量对比":
@@ -1175,14 +1325,47 @@ def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> 
     else:
         long_df["系列"] = long_df["指标"]
 
-    fig = px.line(
-        long_df,
-        x=DATE_COL,
-        y="数值",
-        color="系列",
-        markers=True,
-        color_discrete_sequence=["#0066cc", "#34a853", "#fbbc04", "#ea4335", "#8e44ad", "#00a0b0"],
-    )
+    fig = go.Figure()
+    if compare_scope == "按广告名称对比":
+        render_compare_style_table(selected_labels, selected_ad_names)
+        for metric_index, metric in enumerate(selected_labels):
+            color = COMPARE_COLORS[metric_index % len(COMPARE_COLORS)]
+            for ad_index, ad_name in enumerate(selected_ad_names):
+                series_df = long_df[
+                    (long_df["指标"] == metric) & (long_df[ad_name_col].astype(str) == ad_name)
+                ]
+                fig.add_trace(
+                    go.Scatter(
+                        x=series_df[DATE_COL],
+                        y=series_df["数值"],
+                        name=f"{ad_name} · {metric}",
+                        mode="lines+markers",
+                        line=dict(
+                            color=color,
+                            width=2.8,
+                            dash=COMPARE_DASHES[ad_index % len(COMPARE_DASHES)],
+                        ),
+                        marker=dict(
+                            symbol=COMPARE_SYMBOLS[ad_index % len(COMPARE_SYMBOLS)],
+                            size=8,
+                            color=color,
+                        ),
+                    )
+                )
+    else:
+        for metric_index, metric in enumerate(selected_labels):
+            series_df = long_df[long_df["指标"] == metric]
+            fig.add_trace(
+                go.Scatter(
+                    x=series_df[DATE_COL],
+                    y=series_df["数值"],
+                    name=metric,
+                    mode="lines+markers",
+                    line=dict(color=COMPARE_COLORS[metric_index % len(COMPARE_COLORS)], width=3),
+                    marker=dict(size=8, symbol=COMPARE_SYMBOLS[metric_index % len(COMPARE_SYMBOLS)]),
+                )
+            )
+
     fig.update_layout(
         height=460,
         margin=dict(l=10, r=10, t=16, b=10),
@@ -1200,6 +1383,21 @@ def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> 
         use_container_width=True,
         hide_index=True,
     )
+
+
+def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> None:
+    available_options = get_compare_metric_options(daily_df)
+    panel_count = st.number_input(
+        "创建对比图数量",
+        min_value=1,
+        max_value=4,
+        value=1,
+        step=1,
+        help="可创建多个对比图，每个图保留独立的数据、广告和模式选择。",
+    )
+    for panel_index in range(int(panel_count)):
+        with st.expander(f"对比图 {panel_index + 1}", expanded=True):
+            render_custom_compare_panel(filtered_df, daily_df, available_options, panel_index)
 
 
 def build_funnel_figure(steps: pd.DataFrame) -> go.Figure:
@@ -1607,9 +1805,13 @@ def main() -> None:
     render_data_quality(filtered_df)
     render_kpis(daily_df)
 
-    tab_overview, tab_compare, tab_funnel, tab_rank, tab_raw = st.tabs(
-        ["趋势效率", "自定义对比", "转化漏斗", "广告排行", "明细导出"]
+    tab_compare, tab_overview, tab_funnel, tab_rank, tab_raw = st.tabs(
+        ["自定义对比", "趋势效率", "转化漏斗", "广告排行", "明细导出"]
     )
+
+    with tab_compare:
+        render_section_title("自定义数据对比")
+        render_custom_compare(filtered_df, daily_df)
 
     with tab_overview:
         render_section_title(f"每日花费与 {glossary_term('ROAS')}")
@@ -1618,10 +1820,6 @@ def main() -> None:
         render_efficiency_chart(daily_df)
         render_section_title(f"单次成效费用 {glossary_term('CPA')} 变化表")
         render_cpa_change_table(daily_df)
-
-    with tab_compare:
-        render_section_title("自定义数据对比")
-        render_custom_compare(filtered_df, daily_df)
 
     with tab_funnel:
         render_section_title(f"广告转化漏斗与单次成效费用 {glossary_term('CPA')}")
