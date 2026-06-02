@@ -23,6 +23,7 @@ IMPRESSIONS_COL = "展示次数"
 REACH_COL = "覆盖人数"
 CPM_COL = "CPM（千次展示费用） (USD)"
 CTR_ALL_COL = "点击率（全部）"
+ALL_CLICKS_COL = "点击量"
 CLICKS_COL = "链接点击量"
 ATC_COL = "加入购物车次数"
 CHECKOUT_COL = "结账发起次数"
@@ -37,6 +38,7 @@ CANONICAL_COLUMNS = {
     REACH_COL: ["覆盖人数", "覆盖", "Reach"],
     CPM_COL: ["CPM（千次展示费用） (USD)", "CPM (USD)", "CPM"],
     CTR_ALL_COL: ["点击率（全部）", "CTR (All)", "CTR"],
+    ALL_CLICKS_COL: ["点击量", "点击次数", "全部点击量", "Clicks (all)", "Clicks"],
     CLICKS_COL: ["链接点击量", "链接点击", "Link clicks"],
     ATC_COL: ["加入购物车次数", "加入购物车", "Adds to cart", "Add to cart"],
     CHECKOUT_COL: ["结账发起次数", "发起结账", "Checkouts initiated", "Initiate checkout"],
@@ -51,6 +53,7 @@ NUMERIC_COLUMNS = [
     REACH_COL,
     CPM_COL,
     CTR_ALL_COL,
+    ALL_CLICKS_COL,
     CLICKS_COL,
     ATC_COL,
     CHECKOUT_COL,
@@ -71,6 +74,15 @@ GLOSSARY = {
     "ROAS": ("广告花费回报率", "Return On Ad Spend"),
     "KPI": ("核心绩效指标", "Key Performance Indicator"),
 }
+
+
+FUNNEL_STAGE_OPTIONS = [
+    ("点击量", ALL_CLICKS_COL),
+    ("链接点击量", CLICKS_COL),
+    ("加购次数", ATC_COL),
+    ("结账次数", CHECKOUT_COL),
+    ("购买次数", PURCHASES_COL),
+]
 
 
 @dataclass(frozen=True)
@@ -383,6 +395,128 @@ def inject_css() -> None:
             background: #0066cc;
         }
 
+        .flow-funnel {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin-top: 18px;
+        }
+
+        .flow-stage {
+            display: grid;
+            grid-template-columns: minmax(110px, 150px) 1fr minmax(92px, auto);
+            gap: 14px;
+            align-items: center;
+            padding: 12px 0;
+        }
+
+        .flow-stage-name {
+            color: #1d1d1f;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.25;
+            letter-spacing: -0.224px;
+        }
+
+        .flow-track {
+            height: 42px;
+            border-radius: 9999px;
+            background: #e8e8ed;
+            overflow: hidden;
+        }
+
+        .flow-fill {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            height: 100%;
+            min-width: 38px;
+            border-radius: 9999px;
+            background: #0066cc;
+            color: #ffffff;
+            padding-right: 14px;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: -0.12px;
+        }
+
+        .flow-value {
+            color: #1d1d1f;
+            font-family: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+            line-height: 1.1;
+            letter-spacing: -0.28px;
+            text-align: right;
+        }
+
+        .flow-connector {
+            display: grid;
+            grid-template-columns: minmax(110px, 150px) 1fr minmax(92px, auto);
+            gap: 14px;
+            align-items: center;
+            min-height: 34px;
+        }
+
+        .flow-connector-line {
+            position: relative;
+            height: 1px;
+            background: #d2d2d7;
+        }
+
+        .flow-connector-rate {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 9999px;
+            border: 1px solid #d2d2d7;
+            background: #ffffff;
+            color: #0066cc;
+            padding: 5px 11px;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: -0.12px;
+            white-space: nowrap;
+        }
+
+        .flow-connector-caption {
+            color: #6e6e73;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 12px;
+            letter-spacing: -0.12px;
+            text-align: right;
+        }
+
+        [data-testid="stRadio"] {
+            margin: 4px 0 18px 0;
+        }
+
+        [data-testid="stRadio"] > div {
+            gap: 8px;
+        }
+
+        [data-testid="stRadio"] label {
+            min-height: 36px;
+            padding: 8px 14px;
+            border: 1px solid #e0e0e0;
+            border-radius: 9999px;
+            background: #ffffff;
+            color: #1d1d1f;
+            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            letter-spacing: -0.224px;
+        }
+
+        [data-testid="stRadio"] label:has(input:checked) {
+            border-color: #0066cc;
+            color: #0066cc;
+            background: #f5f9ff;
+        }
+
         @media (max-width: 980px) {
             .kpi-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -404,6 +538,17 @@ def inject_css() -> None:
 
             .funnel-metrics {
                 grid-template-columns: 1fr;
+            }
+
+            .flow-stage,
+            .flow-connector {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .flow-value,
+            .flow-connector-caption {
+                text-align: left;
             }
         }
         </style>
@@ -526,6 +671,7 @@ def build_daily_df(df: pd.DataFrame) -> pd.DataFrame:
                 SPEND_COL: "sum",
                 IMPRESSIONS_COL: "sum",
                 REACH_COL: "sum",
+                ALL_CLICKS_COL: "sum",
                 CLICKS_COL: "sum",
                 ATC_COL: "sum",
                 CHECKOUT_COL: "sum",
@@ -690,6 +836,49 @@ def render_efficiency_chart(daily_df: pd.DataFrame) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
+def render_cpa_change_table(daily_df: pd.DataFrame) -> None:
+    cpa_df = daily_df[
+        [DATE_COL, SPEND_COL, PURCHASES_COL, "CPA 购买成本 (USD)", ROAS_COL]
+    ].copy()
+    cpa_df = cpa_df.rename(
+        columns={
+            DATE_COL: "日期",
+            SPEND_COL: "花费 (USD)",
+            PURCHASES_COL: "购物次数",
+            "CPA 购买成本 (USD)": "单次成效费用 CPA (USD)",
+            ROAS_COL: "购物 ROAS",
+        }
+    )
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=cpa_df["日期"],
+            y=cpa_df["单次成效费用 CPA (USD)"],
+            name="CPA",
+            mode="lines+markers",
+            line=dict(color="#0066cc", width=3),
+            marker=dict(size=8),
+            hovertemplate="%{x|%Y-%m-%d}<br>CPA: $%{y:,.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        height=320,
+        margin=dict(l=10, r=10, t=12, b=10),
+        plot_bgcolor="#fffefa",
+        paper_bgcolor="#fffefa",
+        hovermode="x unified",
+        xaxis=dict(title="", showgrid=False),
+        yaxis=dict(title="CPA (USD)", gridcolor="rgba(24,32,42,0.08)"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.dataframe(
+        cpa_df.sort_values("日期", ascending=False),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
 def build_funnel_figure(steps: pd.DataFrame) -> go.Figure:
     fig = px.funnel(
         steps,
@@ -720,106 +909,101 @@ def bounded_percent(value: float) -> float:
     return max(0.0, min(100.0, value))
 
 
+def render_flow_funnel(stages: list[dict[str, float | str]]) -> None:
+    max_value = max(float(stage["value"]) for stage in stages) if stages else 0
+    rows = []
+
+    for index, stage in enumerate(stages):
+        value = float(stage["value"])
+        width = value / max_value * 100 if max_value else 0
+        rows.append(
+            f"""
+            <div class="flow-stage">
+                <div class="flow-stage-name">{stage["label"]}</div>
+                <div class="flow-track">
+                    <div class="flow-fill" style="width:{bounded_percent(width):.2f}%;">{number(value)}</div>
+                </div>
+                <div class="flow-value">{number(value)}</div>
+            </div>
+            """
+        )
+
+        if index < len(stages) - 1:
+            next_stage = stages[index + 1]
+            next_value = float(next_stage["value"])
+            rate = next_value / value * 100 if value else 0
+            rows.append(
+                f"""
+                <div class="flow-connector">
+                    <div></div>
+                    <div class="flow-connector-line">
+                        <span class="flow-connector-rate">{percentage(rate)}</span>
+                    </div>
+                    <div class="flow-connector-caption">{next_stage["label"]} / {stage["label"]}</div>
+                </div>
+                """
+            )
+
+    st.markdown(f'<div class="flow-funnel">{"".join(rows)}</div>', unsafe_allow_html=True)
+
+
 def render_funnel(df: pd.DataFrame) -> None:
     total_spend = float(df[SPEND_COL].sum())
-    total_clicks = float(df[CLICKS_COL].sum())
-    total_atc = float(df[ATC_COL].sum())
-    total_checkout = float(df[CHECKOUT_COL].sum())
     total_purchases = float(df[PURCHASES_COL].sum())
-
-    atc_rate = total_atc / total_clicks * 100 if total_clicks else 0
-    checkout_rate = total_checkout / total_atc * 100 if total_atc else 0
-    purchase_completion_rate = total_purchases / total_checkout * 100 if total_checkout else 0
     cpa = total_spend / total_purchases if total_purchases else 0
     cpa_term = glossary_term("CPA")
 
-    full_steps = pd.DataFrame(
-        {
-            "环节": [
-                "链接点击量",
-                "加购次数",
-                "发起结账次数",
-                "购物次数",
-            ],
-            "数量": [
-                total_clicks,
-                total_atc,
-                total_checkout,
-                total_purchases,
-            ],
-        }
+    stage_lookup = {label: column for label, column in FUNNEL_STAGE_OPTIONS}
+    default_stages = ["链接点击量", "加购次数", "结账次数", "购买次数"]
+    selected_labels = st.multiselect(
+        "选择漏斗环节",
+        list(stage_lookup.keys()),
+        default=default_stages,
+        help="按固定业务顺序生成漏斗；至少选择两个环节。",
     )
 
-    checkout_steps = pd.DataFrame(
+    ordered_labels = [label for label, _ in FUNNEL_STAGE_OPTIONS if label in selected_labels]
+    if len(ordered_labels) < 2:
+        st.warning("请至少选择两个漏斗环节。")
+        return
+
+    stages = [
         {
-            "环节": [
-                "链接点击量",
-                "发起结账次数",
-                "购物次数",
-            ],
-            "数量": [
-                total_clicks,
-                total_checkout,
-                total_purchases,
-            ],
+            "label": label,
+            "value": float(df[stage_lookup[label]].sum()),
         }
-    )
+        for label in ordered_labels
+    ]
+    path_copy = " → ".join(ordered_labels)
+    connector_count = len(stages) - 1
 
-    full_fig = build_funnel_figure(full_steps)
-    checkout_fig = build_funnel_figure(checkout_steps)
-
-    chart_col_a, chart_col_b, metric_col = st.columns([1.1, 1.1, 0.86])
-    with chart_col_a:
+    chart_col, metric_col = st.columns([1.7, 0.82])
+    with chart_col:
         st.markdown(
-            """
+            f"""
             <div class="apple-funnel-panel">
-                <div class="apple-funnel-stage">含加购路径</div>
-                <div class="apple-funnel-title">点击到购买</div>
-                <p class="apple-funnel-copy">链接点击量、加购次数、发起结账次数、购物次数。</p>
+                <div class="apple-funnel-stage">自定义路径</div>
+                <div class="apple-funnel-title">广告转化漏斗</div>
+                <p class="apple-funnel-copy">{path_copy}</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.plotly_chart(full_fig, use_container_width=True)
-    with chart_col_b:
-        st.markdown(
-            """
-            <div class="apple-funnel-panel">
-                <div class="apple-funnel-stage">无加购路径</div>
-                <div class="apple-funnel-title">点击到结账</div>
-                <p class="apple-funnel-copy">适合查看未配置加购事件或直接结账链路。</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.plotly_chart(checkout_fig, use_container_width=True)
+        render_flow_funnel(stages)
     with metric_col:
         st.markdown(
             f"""
-            <div class="apple-rate-title">转化率</div>
+            <div class="apple-rate-title">摘要</div>
             <div class="funnel-metrics">
                 <div class="funnel-metric">
-                    <div class="funnel-label">加购率</div>
-                    <div class="funnel-value">{percentage(atc_rate)}</div>
-                    <div class="funnel-rate">加购次数 {number(total_atc)} / 链接点击量 {number(total_clicks)}</div>
-                    <div class="apple-rate-bar"><span class="apple-rate-fill" style="width:{bounded_percent(atc_rate):.2f}%;"></span></div>
-                </div>
-                <div class="funnel-metric">
-                    <div class="funnel-label">发起结账率</div>
-                    <div class="funnel-value">{percentage(checkout_rate)}</div>
-                    <div class="funnel-rate">发起结账次数 {number(total_checkout)} / 加购次数 {number(total_atc)}</div>
-                    <div class="apple-rate-bar"><span class="apple-rate-fill" style="width:{bounded_percent(checkout_rate):.2f}%;"></span></div>
-                </div>
-                <div class="funnel-metric">
-                    <div class="funnel-label">购物完成率</div>
-                    <div class="funnel-value">{percentage(purchase_completion_rate)}</div>
-                    <div class="funnel-rate">购物次数 {number(total_purchases)} / 发起结账次数 {number(total_checkout)}</div>
-                    <div class="apple-rate-bar"><span class="apple-rate-fill" style="width:{bounded_percent(purchase_completion_rate):.2f}%;"></span></div>
+                    <div class="funnel-label">已选环节</div>
+                    <div class="funnel-value">{len(stages)}</div>
+                    <div class="funnel-rate">{connector_count} 段连接转化率</div>
                 </div>
                 <div class="funnel-metric">
                     <div class="funnel-label">单次成效费用 {cpa_term}</div>
                     <div class="funnel-value">{money(cpa)}</div>
-                    <div class="funnel-rate">总花费 {money(total_spend)} / 购物次数 {number(total_purchases)}</div>
+                    <div class="funnel-rate">总花费 {money(total_spend)} / 购买次数 {number(total_purchases)}</div>
                 </div>
             </div>
             """,
@@ -1086,6 +1270,8 @@ def main() -> None:
         render_trend_chart(daily_df)
         render_section_title(f"{glossary_term('CTR')} 与 {glossary_term('CPC')}")
         render_efficiency_chart(daily_df)
+        render_section_title(f"单次成效费用 {glossary_term('CPA')} 变化表")
+        render_cpa_change_table(daily_df)
 
     with tab_funnel:
         render_section_title(f"广告转化漏斗与单次成效费用 {glossary_term('CPA')}")
