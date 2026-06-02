@@ -1179,51 +1179,18 @@ def get_compare_metric_options(daily_df: pd.DataFrame) -> dict[str, str]:
 
 
 def render_compare_style_table(selected_labels: list[str], selected_ad_names: list[str]) -> None:
-    marker_class = {
-        "circle": "circle",
-        "square": "square",
-        "diamond": "diamond",
-        "triangle-up": "triangle-up",
-        "cross": "square",
-        "x": "diamond",
-    }
-    header_cells = "".join(f"<th>{ad_name}</th>" for ad_name in selected_ad_names)
-    rows = []
+    rows: list[dict[str, str]] = []
     for metric_index, metric in enumerate(selected_labels):
-        color = COMPARE_COLORS[metric_index % len(COMPARE_COLORS)]
-        cells = []
+        row = {"指标名": metric}
         for ad_index, _ad_name in enumerate(selected_ad_names):
-            dash = COMPARE_DASHES[ad_index % len(COMPARE_DASHES)]
-            symbol = COMPARE_SYMBOLS[ad_index % len(COMPARE_SYMBOLS)]
-            border_style = {
-                "solid": "solid",
-                "dash": "dashed",
-                "dot": "dotted",
-                "dashdot": "dashed",
-                "longdash": "dashed",
-                "longdashdot": "dashed",
-            }[dash]
-            cells.append(
-                f"""
-                <td>
-                    <span class="style-swatch" style="color:{color};">
-                        <span class="style-line" style="border-top-color:{color}; border-top-style:{border_style};"></span>
-                        <span class="style-marker {marker_class.get(symbol, 'circle')}"></span>
-                    </span>
-                </td>
-                """
-            )
-        rows.append(f"<tr><th>{metric}</th>{''.join(cells)}</tr>")
+            color = COMPARE_COLORS[ad_index % len(COMPARE_COLORS)]
+            dash = COMPARE_DASHES[metric_index % len(COMPARE_DASHES)]
+            symbol = COMPARE_SYMBOLS[metric_index % len(COMPARE_SYMBOLS)]
+            row[_ad_name] = f"颜色 {color} / 线型 {dash} / 端点 {symbol}"
+        rows.append(row)
 
-    st.markdown(
-        f"""
-        <table class="compare-style-table">
-            <thead><tr><th>指标 / 广告名称</th>{header_cells}</tr></thead>
-            <tbody>{''.join(rows)}</tbody>
-        </table>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.caption("样式说明：列为广告名称，行为指标名。")
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 def render_custom_compare_panel(
@@ -1329,8 +1296,8 @@ def render_custom_compare_panel(
     if compare_scope == "按广告名称对比":
         render_compare_style_table(selected_labels, selected_ad_names)
         for metric_index, metric in enumerate(selected_labels):
-            color = COMPARE_COLORS[metric_index % len(COMPARE_COLORS)]
             for ad_index, ad_name in enumerate(selected_ad_names):
+                color = COMPARE_COLORS[ad_index % len(COMPARE_COLORS)]
                 series_df = long_df[
                     (long_df["指标"] == metric) & (long_df[ad_name_col].astype(str) == ad_name)
                 ]
@@ -1343,10 +1310,10 @@ def render_custom_compare_panel(
                         line=dict(
                             color=color,
                             width=2.8,
-                            dash=COMPARE_DASHES[ad_index % len(COMPARE_DASHES)],
+                            dash=COMPARE_DASHES[metric_index % len(COMPARE_DASHES)],
                         ),
                         marker=dict(
-                            symbol=COMPARE_SYMBOLS[ad_index % len(COMPARE_SYMBOLS)],
+                            symbol=COMPARE_SYMBOLS[metric_index % len(COMPARE_SYMBOLS)],
                             size=8,
                             color=color,
                         ),
