@@ -40,3 +40,5 @@ streamlit run app.py
 - `广告花费回报 (ROAS) - 购物`
 
 应用也兼容部分英文列名，例如 `Date`、`Amount spent (USD)`、`Impressions`、`Link clicks`、`Purchases`、`ROAS`。
+
+自定义数据对比会自动识别上传表中所有可数值化的指标表头，并追加应用计算出的 CTR、CPC、CPM、CVR、CPA 等派生指标。

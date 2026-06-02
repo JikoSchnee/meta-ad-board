@@ -34,6 +34,20 @@ CHECKOUT_COL = "结账发起次数"
 PURCHASES_COL = "成效"
 ROAS_COL = "广告花费回报 (ROAS) - 购物"
 
+NON_NUMERIC_COMPARE_COLUMNS = {
+    DATE_COL,
+    "报告结束日期",
+    "广告名称",
+    "广告投放",
+    "广告组预算类型",
+    "归因设置",
+    "成效指标",
+    "成效值指标",
+    "Campaign name",
+    "Ad set name",
+    "Ad name",
+}
+
 
 CANONICAL_COLUMNS = {
     DATE_COL: ["报告开始日期", "开始报告日期", "开始日期", "日期", "Date", "Day"],
@@ -54,7 +68,9 @@ CANONICAL_COLUMNS = {
     VIDEO_PLAYS_COL: ["视频播放量", "视频播放次数", "Video plays", "Video plays at 100%"],
     VIDEO_3S_RATE_COL: [
         "单次展示的播放视频达3秒率",
+        "单次展示的播放视频达 3 秒率",
         "播放视频达3秒率",
+        "播放视频达 3 秒率",
         "3秒视频播放率",
         "3-second video plays per impression",
         "3-second video play rate",
@@ -94,6 +110,14 @@ NUMERIC_COLUMNS = [
 DIMENSION_CANDIDATES = ["广告系列名称", "广告组名称", "广告名称", "Campaign name", "Ad set name", "Ad name"]
 
 VIDEO_SOURCE_COLUMNS = [VIDEO_PLAYS_COL, VIDEO_3S_RATE_COL, VIDEO_AVG_PLAY_TIME_COL]
+
+DERIVED_COMPARE_COLUMNS = {
+    "整体CTR (%)",
+    "CPC (USD)",
+    "CPM (USD)",
+    "CVR 点击到购买 (%)",
+    "CPA 购买成本 (USD)",
+}
 
 
 GLOSSARY = {
@@ -632,6 +656,28 @@ def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=rename_map)
 
 
+def parse_duration_seconds(value: object) -> float | None:
+    text = str(value).strip()
+    if ":" not in text:
+        return None
+
+    parts = text.split(":")
+    if not 2 <= len(parts) <= 3:
+        return None
+
+    try:
+        numbers = [float(part) for part in parts]
+    except ValueError:
+        return None
+
+    if len(numbers) == 2:
+        minutes, seconds = numbers
+        return minutes * 60 + seconds
+
+    hours, minutes, seconds = numbers
+    return hours * 3600 + minutes * 60 + seconds
+
+
 def clean_numeric(series: pd.Series) -> pd.Series:
     cleaned = (
         series.astype(str)
@@ -643,7 +689,28 @@ def clean_numeric(series: pd.Series) -> pd.Series:
         .str.replace("—", "", regex=False)
         .str.replace("N/A", "", regex=False)
     )
-    return pd.to_numeric(cleaned, errors="coerce").fillna(0)
+    numeric = pd.to_numeric(cleaned, errors="coerce").astype("float64")
+    duration_values = pd.to_numeric(series.map(parse_duration_seconds), errors="coerce").astype("float64")
+    numeric.loc[numeric.isna()] = duration_values.loc[numeric.isna()]
+    return numeric.fillna(0)
+
+
+def discover_numeric_columns(df: pd.DataFrame) -> list[str]:
+    numeric_columns = []
+    for col in df.columns:
+        if col in NON_NUMERIC_COMPARE_COLUMNS:
+            continue
+
+        if pd.api.types.is_numeric_dtype(df[col]):
+            numeric_columns.append(col)
+            continue
+
+        cleaned = clean_numeric(df[col])
+        non_empty = df[col].notna() & df[col].astype(str).str.strip().ne("")
+        if non_empty.any() and cleaned[non_empty].notna().any():
+            if cleaned[non_empty].abs().sum() > 0:
+                numeric_columns.append(col)
+    return numeric_columns
 
 
 def ensure_columns(df: pd.DataFrame, columns: Iterable[str]) -> pd.DataFrame:
@@ -670,6 +737,7 @@ def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
     df = rename_columns(df)
     has_all_clicks_col = ALL_CLICKS_COL in df.columns
     present_columns = set(df.columns)
+    discovered_numeric_columns = discover_numeric_columns(df)
 
     if DATE_COL not in df.columns:
         raise ValueError(f"未找到日期列。请确认文件里包含“{DATE_COL}”或“日期”。")
@@ -679,8 +747,9 @@ def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         raise ValueError("日期列无法解析，清洗后没有可用数据。")
 
-    df = ensure_columns(df, NUMERIC_COLUMNS)
-    for col in NUMERIC_COLUMNS:
+    compare_numeric_columns = list(dict.fromkeys(NUMERIC_COLUMNS + discovered_numeric_columns))
+    df = ensure_columns(df, compare_numeric_columns)
+    for col in compare_numeric_columns:
         df[col] = clean_numeric(df[col])
 
     if (not has_all_clicks_col or df[ALL_CLICKS_COL].sum() == 0) and df[CLICKS_COL].sum() > 0:
@@ -688,6 +757,9 @@ def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.sort_values(DATE_COL).reset_index(drop=True)
     df.attrs["present_columns"] = present_columns
+    df.attrs["compare_numeric_columns"] = [
+        col for col in compare_numeric_columns if col in present_columns
+    ]
     return df
 
 
@@ -700,30 +772,37 @@ def weighted_average(values: pd.Series, weights: pd.Series) -> float:
 
 
 def build_daily_df(df: pd.DataFrame) -> pd.DataFrame:
+    compare_numeric_columns = df.attrs.get("compare_numeric_columns", NUMERIC_COLUMNS)
     roas_source = df.assign(
         _roas_value=df[ROAS_COL] * df[SPEND_COL],
         _video_3s_rate_value=df[VIDEO_3S_RATE_COL] * df[IMPRESSIONS_COL],
         _video_avg_time_value=df[VIDEO_AVG_PLAY_TIME_COL] * df[VIDEO_PLAYS_COL],
     )
+    agg_map = {
+        col: "sum"
+        for col in compare_numeric_columns
+        if col in roas_source.columns and col not in {ROAS_COL, VIDEO_3S_RATE_COL, VIDEO_AVG_PLAY_TIME_COL}
+    }
+    agg_map.update(
+        {
+            SPEND_COL: "sum",
+            IMPRESSIONS_COL: "sum",
+            REACH_COL: "sum",
+            ALL_CLICKS_COL: "sum",
+            CLICKS_COL: "sum",
+            LANDING_PAGE_VIEWS_COL: "sum",
+            VIDEO_PLAYS_COL: "sum",
+            ATC_COL: "sum",
+            CHECKOUT_COL: "sum",
+            PURCHASES_COL: "sum",
+            "_roas_value": "sum",
+            "_video_3s_rate_value": "sum",
+            "_video_avg_time_value": "sum",
+        }
+    )
     daily = (
         roas_source.groupby(DATE_COL, as_index=False)
-        .agg(
-            {
-                SPEND_COL: "sum",
-                IMPRESSIONS_COL: "sum",
-                REACH_COL: "sum",
-                ALL_CLICKS_COL: "sum",
-                CLICKS_COL: "sum",
-                LANDING_PAGE_VIEWS_COL: "sum",
-                VIDEO_PLAYS_COL: "sum",
-                ATC_COL: "sum",
-                CHECKOUT_COL: "sum",
-                PURCHASES_COL: "sum",
-                "_roas_value": "sum",
-                "_video_3s_rate_value": "sum",
-                "_video_avg_time_value": "sum",
-            }
-        )
+        .agg(agg_map)
         .sort_values(DATE_COL)
     )
 
@@ -737,6 +816,7 @@ def build_daily_df(df: pd.DataFrame) -> pd.DataFrame:
     daily[VIDEO_AVG_PLAY_TIME_COL] = safe_divide(daily["_video_avg_time_value"], daily[VIDEO_PLAYS_COL])
     daily = daily.drop(columns=["_roas_value", "_video_3s_rate_value", "_video_avg_time_value"])
     daily.attrs["present_columns"] = df.attrs.get("present_columns", set(df.columns))
+    daily.attrs["compare_numeric_columns"] = compare_numeric_columns
     return daily
 
 
@@ -929,30 +1009,37 @@ def render_cpa_change_table(daily_df: pd.DataFrame) -> None:
 
 def aggregate_compare_by_date(df: pd.DataFrame, group_cols: list[str] | None = None) -> pd.DataFrame:
     group_cols = group_cols or []
+    compare_numeric_columns = df.attrs.get("compare_numeric_columns", NUMERIC_COLUMNS)
     source = df.assign(
         _roas_value=df[ROAS_COL] * df[SPEND_COL],
         _video_3s_rate_value=df[VIDEO_3S_RATE_COL] * df[IMPRESSIONS_COL],
         _video_avg_time_value=df[VIDEO_AVG_PLAY_TIME_COL] * df[VIDEO_PLAYS_COL],
     )
+    agg_map = {
+        col: "sum"
+        for col in compare_numeric_columns
+        if col in source.columns and col not in {ROAS_COL, VIDEO_3S_RATE_COL, VIDEO_AVG_PLAY_TIME_COL}
+    }
+    agg_map.update(
+        {
+            SPEND_COL: "sum",
+            IMPRESSIONS_COL: "sum",
+            REACH_COL: "sum",
+            ALL_CLICKS_COL: "sum",
+            CLICKS_COL: "sum",
+            LANDING_PAGE_VIEWS_COL: "sum",
+            VIDEO_PLAYS_COL: "sum",
+            ATC_COL: "sum",
+            CHECKOUT_COL: "sum",
+            PURCHASES_COL: "sum",
+            "_roas_value": "sum",
+            "_video_3s_rate_value": "sum",
+            "_video_avg_time_value": "sum",
+        }
+    )
     grouped = (
         source.groupby([DATE_COL] + group_cols, as_index=False)
-        .agg(
-            {
-                SPEND_COL: "sum",
-                IMPRESSIONS_COL: "sum",
-                REACH_COL: "sum",
-                ALL_CLICKS_COL: "sum",
-                CLICKS_COL: "sum",
-                LANDING_PAGE_VIEWS_COL: "sum",
-                VIDEO_PLAYS_COL: "sum",
-                ATC_COL: "sum",
-                CHECKOUT_COL: "sum",
-                PURCHASES_COL: "sum",
-                "_roas_value": "sum",
-                "_video_3s_rate_value": "sum",
-                "_video_avg_time_value": "sum",
-            }
-        )
+        .agg(agg_map)
         .sort_values([DATE_COL] + group_cols)
     )
     grouped["整体CTR (%)"] = safe_divide(grouped[CLICKS_COL], grouped[IMPRESSIONS_COL]) * 100
@@ -967,8 +1054,8 @@ def aggregate_compare_by_date(df: pd.DataFrame, group_cols: list[str] | None = N
 
 
 def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> None:
-    present_columns = daily_df.attrs.get("present_columns", set(daily_df.columns))
-    has_video_table = all(col in present_columns for col in VIDEO_SOURCE_COLUMNS)
+    compare_numeric_columns = daily_df.attrs.get("compare_numeric_columns", NUMERIC_COLUMNS)
+    selectable_columns = set(compare_numeric_columns) | DERIVED_COMPARE_COLUMNS
     metric_options = {
         "花费 (USD)": SPEND_COL,
         "展示次数": IMPRESSIONS_COL,
@@ -986,17 +1073,20 @@ def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> 
         "CPA (USD)": "CPA 购买成本 (USD)",
         "ROAS": ROAS_COL,
     }
-    if has_video_table:
-        metric_options.update(
-            {
-                "视频播放量": VIDEO_PLAYS_COL,
-                "单次展示的播放视频达3秒率": VIDEO_3S_RATE_COL,
-                "视频平均播放时长": VIDEO_AVG_PLAY_TIME_COL,
-            }
-        )
+    metric_options.update(
+        {
+            "视频播放量": VIDEO_PLAYS_COL,
+            "单次展示的播放视频达 3 秒率": VIDEO_3S_RATE_COL,
+            "视频平均播放时长": VIDEO_AVG_PLAY_TIME_COL,
+        }
+    )
+    for col in compare_numeric_columns:
+        metric_options.setdefault(col, col)
 
     available_options = {
-        label: column for label, column in metric_options.items() if column in daily_df.columns
+        label: column
+        for label, column in metric_options.items()
+        if column in daily_df.columns and column in selectable_columns
     }
 
     compare_scope = st.radio(
