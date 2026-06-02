@@ -1,0 +1,886 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Iterable
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+
+
+st.set_page_config(
+    page_title="Meta Ads 数据分析看板",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+
+DATE_COL = "报告开始日期"
+SPEND_COL = "已花费金额 (USD)"
+IMPRESSIONS_COL = "展示次数"
+REACH_COL = "覆盖人数"
+CPM_COL = "CPM（千次展示费用） (USD)"
+CTR_ALL_COL = "点击率（全部）"
+CLICKS_COL = "链接点击量"
+ATC_COL = "加入购物车次数"
+CHECKOUT_COL = "结账发起次数"
+PURCHASES_COL = "成效"
+ROAS_COL = "广告花费回报 (ROAS) - 购物"
+
+
+CANONICAL_COLUMNS = {
+    DATE_COL: ["报告开始日期", "开始报告日期", "开始日期", "日期", "Date", "Day"],
+    SPEND_COL: ["已花费金额 (USD)", "花费", "支出", "Amount spent (USD)", "Amount spent"],
+    IMPRESSIONS_COL: ["展示次数", "Impressions"],
+    REACH_COL: ["覆盖人数", "覆盖", "Reach"],
+    CPM_COL: ["CPM（千次展示费用） (USD)", "CPM (USD)", "CPM"],
+    CTR_ALL_COL: ["点击率（全部）", "CTR (All)", "CTR"],
+    CLICKS_COL: ["链接点击量", "链接点击", "Link clicks"],
+    ATC_COL: ["加入购物车次数", "加入购物车", "Adds to cart", "Add to cart"],
+    CHECKOUT_COL: ["结账发起次数", "发起结账", "Checkouts initiated", "Initiate checkout"],
+    PURCHASES_COL: ["成效", "购买", "购物次数", "Purchases", "Results"],
+    ROAS_COL: ["广告花费回报 (ROAS) - 购物", "购物 ROAS", "Purchase ROAS", "ROAS"],
+}
+
+
+NUMERIC_COLUMNS = [
+    SPEND_COL,
+    IMPRESSIONS_COL,
+    REACH_COL,
+    CPM_COL,
+    CTR_ALL_COL,
+    CLICKS_COL,
+    ATC_COL,
+    CHECKOUT_COL,
+    PURCHASES_COL,
+    ROAS_COL,
+]
+
+
+DIMENSION_CANDIDATES = ["广告系列名称", "广告组名称", "广告名称", "Campaign name", "Ad set name", "Ad name"]
+
+
+GLOSSARY = {
+    "CTR": ("点击率", "Click-Through Rate"),
+    "CPC": ("单次点击成本", "Cost Per Click"),
+    "CPM": ("千次展示费用", "Cost Per Mille"),
+    "CPA": ("单次购买/转化成本", "Cost Per Acquisition"),
+    "CVR": ("转化率", "Conversion Rate"),
+    "ROAS": ("广告花费回报率", "Return On Ad Spend"),
+    "KPI": ("核心绩效指标", "Key Performance Indicator"),
+}
+
+
+@dataclass(frozen=True)
+class HealthBand:
+    label: str
+    color: str
+
+
+def inject_css() -> None:
+    st.markdown(
+        """
+        <style>
+        :root {
+            --ink: #18202a;
+            --muted: #687385;
+            --paper: #f6f3ed;
+            --panel: #fffefa;
+            --line: rgba(24, 32, 42, 0.12);
+            --green: #236a4e;
+            --amber: #b6641f;
+            --red: #a53d2f;
+            --blue: #275f8f;
+        }
+
+        .stApp {
+            background:
+                linear-gradient(90deg, rgba(24,32,42,0.045) 1px, transparent 1px),
+                linear-gradient(rgba(24,32,42,0.035) 1px, transparent 1px),
+                var(--paper);
+            background-size: 28px 28px;
+            color: var(--ink);
+        }
+
+        h1, h2, h3 {
+            letter-spacing: 0;
+        }
+
+        [data-testid="stSidebar"] {
+            background: #1f252c;
+            color: #fffefa;
+        }
+
+        [data-testid="stSidebar"] label,
+        [data-testid="stSidebar"] p,
+        [data-testid="stSidebar"] span {
+            color: #fffefa;
+        }
+
+        .hero {
+            border: 1px solid var(--line);
+            background: rgba(255, 254, 250, 0.82);
+            padding: 24px 28px;
+            margin-bottom: 18px;
+        }
+
+        .hero-title {
+            font-size: 34px;
+            font-weight: 760;
+            line-height: 1.1;
+            margin: 0 0 8px 0;
+            color: var(--ink);
+        }
+
+        .hero-copy {
+            max-width: 920px;
+            font-size: 16px;
+            line-height: 1.65;
+            color: var(--muted);
+            margin: 0;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin: 12px 0 18px 0;
+        }
+
+        .kpi {
+            min-height: 122px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            padding: 16px;
+        }
+
+        .kpi-label {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        .kpi-value {
+            color: var(--ink);
+            font-size: 28px;
+            font-weight: 760;
+            line-height: 1.1;
+        }
+
+        .kpi-note {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .section-title {
+            color: var(--ink);
+            font-size: 22px;
+            font-weight: 730;
+            line-height: 1.25;
+            margin: 18px 0 10px 0;
+        }
+
+        .abbr {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            border-bottom: 1px dotted rgba(24, 32, 42, 0.55);
+            cursor: help;
+            color: inherit;
+            overflow: visible;
+        }
+
+        .abbr::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 8px);
+            transform: translateX(-50%);
+            min-width: 188px;
+            max-width: 260px;
+            padding: 9px 10px;
+            background: #1f252c;
+            color: #fffefa;
+            border: 1px solid rgba(255, 254, 250, 0.16);
+            font-size: 12px;
+            font-weight: 560;
+            line-height: 1.35;
+            text-align: center;
+            white-space: normal;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+            transition: opacity 120ms ease, transform 120ms ease;
+        }
+
+        .abbr::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 3px);
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #1f252c;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 51;
+            transition: opacity 120ms ease;
+        }
+
+        .abbr:hover::after,
+        .abbr:hover::before {
+            opacity: 1;
+        }
+
+        .abbr:hover::after {
+            transform: translateX(-50%) translateY(-2px);
+        }
+
+        .suggestion {
+            border-left: 5px solid var(--blue);
+            background: var(--panel);
+            padding: 14px 16px;
+            margin: 10px 0;
+            border-top: 1px solid var(--line);
+            border-right: 1px solid var(--line);
+            border-bottom: 1px solid var(--line);
+        }
+
+        .suggestion.warn {
+            border-left-color: var(--amber);
+        }
+
+        .suggestion.bad {
+            border-left-color: var(--red);
+        }
+
+        .suggestion.good {
+            border-left-color: var(--green);
+        }
+
+        .suggestion-title {
+            font-weight: 720;
+            margin-bottom: 4px;
+        }
+
+        .suggestion-body {
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        @media (max-width: 980px) {
+            .kpi-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 560px) {
+            .hero-title {
+                font-size: 26px;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_header() -> None:
+    st.markdown(
+        """
+        <div class="hero">
+            <div class="hero-title">Meta Ads 自动化数据分析看板</div>
+            <p class="hero-copy">
+                上传 Meta Ads Manager 导出的 CSV 或 Excel 文件，系统会自动清洗中文列名、生成趋势图、转化漏斗、广告层级排行，并给出可执行的投放诊断建议。
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def glossary_term(abbr: str) -> str:
+    chinese, english = GLOSSARY[abbr]
+    tooltip = f"{chinese} / {english}"
+    return f'<span class="abbr" title="{tooltip}" data-tooltip="{tooltip}">{abbr}</span>'
+
+
+def render_section_title(title_html: str) -> None:
+    st.markdown(f'<div class="section-title">{title_html}</div>', unsafe_allow_html=True)
+
+
+def normalize_label(label: object) -> str:
+    return str(label).strip().replace("\n", " ").replace("\u3000", " ")
+
+
+def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
+    normalized_to_original = {normalize_label(col): col for col in df.columns}
+    rename_map = {}
+
+    for canonical, aliases in CANONICAL_COLUMNS.items():
+        if canonical in df.columns:
+            continue
+
+        for alias in aliases:
+            if alias in normalized_to_original:
+                rename_map[normalized_to_original[alias]] = canonical
+                break
+
+    return df.rename(columns=rename_map)
+
+
+def clean_numeric(series: pd.Series) -> pd.Series:
+    cleaned = (
+        series.astype(str)
+        .str.strip()
+        .str.replace(",", "", regex=False)
+        .str.replace("$", "", regex=False)
+        .str.replace("%", "", regex=False)
+        .str.replace("--", "", regex=False)
+        .str.replace("—", "", regex=False)
+        .str.replace("N/A", "", regex=False)
+    )
+    return pd.to_numeric(cleaned, errors="coerce").fillna(0)
+
+
+def ensure_columns(df: pd.DataFrame, columns: Iterable[str]) -> pd.DataFrame:
+    for col in columns:
+        if col not in df.columns:
+            df[col] = 0
+    return df
+
+
+def parse_uploaded_file(uploaded_file) -> pd.DataFrame:
+    if uploaded_file.name.lower().endswith(".csv"):
+        try:
+            return pd.read_csv(uploaded_file, encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            uploaded_file.seek(0)
+            return pd.read_csv(uploaded_file, encoding="gb18030")
+
+    return pd.read_excel(uploaded_file)
+
+
+def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
+    df = raw_df.copy()
+    df.columns = [normalize_label(col) for col in df.columns]
+    df = rename_columns(df)
+
+    if DATE_COL not in df.columns:
+        raise ValueError(f"未找到日期列。请确认文件里包含“{DATE_COL}”或“日期”。")
+
+    df[DATE_COL] = pd.to_datetime(df[DATE_COL], errors="coerce")
+    df = df[df[DATE_COL].notna()].copy()
+    if df.empty:
+        raise ValueError("日期列无法解析，清洗后没有可用数据。")
+
+    df = ensure_columns(df, NUMERIC_COLUMNS)
+    for col in NUMERIC_COLUMNS:
+        df[col] = clean_numeric(df[col])
+
+    df = df.sort_values(DATE_COL).reset_index(drop=True)
+    return df
+
+
+def weighted_average(values: pd.Series, weights: pd.Series) -> float:
+    value_sum = (values * weights).sum()
+    weight_sum = weights.sum()
+    if weight_sum == 0:
+        return 0.0
+    return float(value_sum / weight_sum)
+
+
+def build_daily_df(df: pd.DataFrame) -> pd.DataFrame:
+    roas_source = df.assign(_roas_value=df[ROAS_COL] * df[SPEND_COL])
+    daily = (
+        roas_source.groupby(DATE_COL, as_index=False)
+        .agg(
+            {
+                SPEND_COL: "sum",
+                IMPRESSIONS_COL: "sum",
+                REACH_COL: "sum",
+                CLICKS_COL: "sum",
+                ATC_COL: "sum",
+                CHECKOUT_COL: "sum",
+                PURCHASES_COL: "sum",
+                "_roas_value": "sum",
+            }
+        )
+        .sort_values(DATE_COL)
+    )
+
+    daily["整体CTR (%)"] = safe_divide(daily[CLICKS_COL], daily[IMPRESSIONS_COL]) * 100
+    daily["CPC (USD)"] = safe_divide(daily[SPEND_COL], daily[CLICKS_COL])
+    daily["CPM (USD)"] = safe_divide(daily[SPEND_COL], daily[IMPRESSIONS_COL]) * 1000
+    daily["CVR 点击到购买 (%)"] = safe_divide(daily[PURCHASES_COL], daily[CLICKS_COL]) * 100
+    daily["CPA 购买成本 (USD)"] = safe_divide(daily[SPEND_COL], daily[PURCHASES_COL])
+    daily[ROAS_COL] = safe_divide(daily["_roas_value"], daily[SPEND_COL])
+    daily = daily.drop(columns=["_roas_value"])
+    return daily
+
+
+def safe_divide(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
+    numerator = pd.to_numeric(numerator, errors="coerce").fillna(0)
+    denominator = pd.to_numeric(denominator, errors="coerce").fillna(0)
+    result = pd.Series(0.0, index=numerator.index)
+    valid = denominator.ne(0)
+    result.loc[valid] = numerator.loc[valid] / denominator.loc[valid]
+    return result
+
+
+def money(value: float) -> str:
+    return f"${value:,.2f}"
+
+
+def number(value: float) -> str:
+    return f"{int(round(value)):,}"
+
+
+def percentage(value: float) -> str:
+    return f"{value:.2f}%"
+
+
+def roas_health(roas: float) -> HealthBand:
+    if roas >= 2.0:
+        return HealthBand("健康", "#236a4e")
+    if roas >= 1.0:
+        return HealthBand("观察", "#b6641f")
+    return HealthBand("危险", "#a53d2f")
+
+
+def render_kpis(daily_df: pd.DataFrame) -> None:
+    total_spend = daily_df[SPEND_COL].sum()
+    total_impressions = daily_df[IMPRESSIONS_COL].sum()
+    total_clicks = daily_df[CLICKS_COL].sum()
+    total_purchases = daily_df[PURCHASES_COL].sum()
+    weighted_roas = weighted_average(daily_df[ROAS_COL], daily_df[SPEND_COL])
+    ctr = safe_divide(pd.Series([total_clicks]), pd.Series([total_impressions])).iloc[0] * 100
+    cpa = total_spend / total_purchases if total_purchases else 0
+    health = roas_health(weighted_roas)
+    ctr_term = glossary_term("CTR")
+    roas_term = glossary_term("ROAS")
+    cpa_term = glossary_term("CPA")
+
+    st.markdown(
+        f"""
+        <div class="kpi-grid">
+            <div class="kpi">
+                <div class="kpi-label">总消耗金额</div>
+                <div class="kpi-value">{money(total_spend)}</div>
+                <div class="kpi-note">全部日期合计</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">总展示 / 点击</div>
+                <div class="kpi-value">{number(total_impressions)}</div>
+                <div class="kpi-note">{number(total_clicks)} 次链接点击</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">整体链接 {ctr_term}</div>
+                <div class="kpi-value">{percentage(ctr)}</div>
+                <div class="kpi-note">点击量 ÷ 展示次数</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">购物 {roas_term} / {cpa_term}</div>
+                <div class="kpi-value" style="color:{health.color};">{weighted_roas:.2f}</div>
+                <div class="kpi-note">{health.label} · {cpa_term} {money(cpa)}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_trend_chart(daily_df: pd.DataFrame) -> None:
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=daily_df[DATE_COL],
+            y=daily_df[SPEND_COL],
+            name="每日花费",
+            marker_color="#275f8f",
+            yaxis="y1",
+            hovertemplate="%{x|%Y-%m-%d}<br>花费: $%{y:,.2f}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=daily_df[DATE_COL],
+            y=daily_df[ROAS_COL],
+            name="购物 ROAS",
+            mode="lines+markers",
+            line=dict(color="#b6641f", width=3),
+            marker=dict(size=8),
+            yaxis="y2",
+            hovertemplate="%{x|%Y-%m-%d}<br>ROAS: %{y:.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        height=430,
+        margin=dict(l=10, r=10, t=20, b=10),
+        plot_bgcolor="#fffefa",
+        paper_bgcolor="#fffefa",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        xaxis=dict(title="", showgrid=False),
+        yaxis=dict(title="花费 (USD)", side="left", gridcolor="rgba(24,32,42,0.08)"),
+        yaxis2=dict(title="ROAS", side="right", overlaying="y", showgrid=False),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_efficiency_chart(daily_df: pd.DataFrame) -> None:
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=daily_df[DATE_COL],
+            y=daily_df["整体CTR (%)"],
+            name="整体 CTR",
+            mode="lines+markers",
+            line=dict(color="#236a4e", width=3),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=daily_df[DATE_COL],
+            y=daily_df["CPC (USD)"],
+            name="CPC",
+            mode="lines+markers",
+            line=dict(color="#a53d2f", width=3),
+            yaxis="y2",
+        )
+    )
+    fig.update_layout(
+        height=380,
+        margin=dict(l=10, r=10, t=20, b=10),
+        plot_bgcolor="#fffefa",
+        paper_bgcolor="#fffefa",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        xaxis=dict(title="", showgrid=False),
+        yaxis=dict(title="CTR (%)", gridcolor="rgba(24,32,42,0.08)"),
+        yaxis2=dict(title="CPC (USD)", side="right", overlaying="y", showgrid=False),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_funnel(df: pd.DataFrame) -> None:
+    steps = pd.DataFrame(
+        {
+            "环节": ["展示", "链接点击", "加入购物车", "发起结账", "购买成效"],
+            "数量": [
+                df[IMPRESSIONS_COL].sum(),
+                df[CLICKS_COL].sum(),
+                df[ATC_COL].sum(),
+                df[CHECKOUT_COL].sum(),
+                df[PURCHASES_COL].sum(),
+            ],
+        }
+    )
+    fig = px.funnel(
+        steps,
+        x="数量",
+        y="环节",
+        color="环节",
+        color_discrete_sequence=["#275f8f", "#236a4e", "#b6641f", "#8d5a7b", "#a53d2f"],
+    )
+    fig.update_traces(textinfo="value+percent previous")
+    fig.update_layout(
+        height=430,
+        margin=dict(l=10, r=10, t=20, b=10),
+        plot_bgcolor="#fffefa",
+        paper_bgcolor="#fffefa",
+        showlegend=False,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_dimension_rank(df: pd.DataFrame) -> None:
+    available_dimensions = [col for col in DIMENSION_CANDIDATES if col in df.columns]
+    if not available_dimensions:
+        st.info("没有检测到广告系列、广告组或广告名称列，因此跳过层级排行。")
+        return
+
+    dimension = st.selectbox("选择排行维度", available_dimensions, index=0)
+    ranked = (
+        df.groupby(dimension, as_index=False)
+        .agg(
+            {
+                SPEND_COL: "sum",
+                IMPRESSIONS_COL: "sum",
+                CLICKS_COL: "sum",
+                ATC_COL: "sum",
+                CHECKOUT_COL: "sum",
+                PURCHASES_COL: "sum",
+            }
+        )
+        .sort_values(SPEND_COL, ascending=False)
+        .head(20)
+    )
+    ranked["CTR (%)"] = safe_divide(ranked[CLICKS_COL], ranked[IMPRESSIONS_COL]) * 100
+    ranked["CPA (USD)"] = safe_divide(ranked[SPEND_COL], ranked[PURCHASES_COL])
+
+    fig = px.bar(
+        ranked.sort_values(SPEND_COL),
+        x=SPEND_COL,
+        y=dimension,
+        orientation="h",
+        color="CTR (%)",
+        color_continuous_scale=["#a53d2f", "#b6641f", "#236a4e"],
+        hover_data={
+            SPEND_COL: ":,.2f",
+            CLICKS_COL: ":,",
+            PURCHASES_COL: ":,",
+            "CTR (%)": ":.2f",
+            "CPA (USD)": ":.2f",
+        },
+    )
+    fig.update_layout(
+        height=max(420, min(820, len(ranked) * 34)),
+        margin=dict(l=10, r=10, t=20, b=10),
+        plot_bgcolor="#fffefa",
+        paper_bgcolor="#fffefa",
+        xaxis_title="花费 (USD)",
+        yaxis_title="",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.dataframe(
+        ranked.sort_values(SPEND_COL, ascending=False),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def build_suggestions(df: pd.DataFrame, daily_df: pd.DataFrame) -> list[tuple[str, str, str]]:
+    total_spend = float(daily_df[SPEND_COL].sum())
+    total_impressions = float(daily_df[IMPRESSIONS_COL].sum())
+    total_clicks = float(daily_df[CLICKS_COL].sum())
+    total_atc = float(daily_df[ATC_COL].sum())
+    total_checkout = float(daily_df[CHECKOUT_COL].sum())
+    total_purchases = float(daily_df[PURCHASES_COL].sum())
+    ctr = total_clicks / total_impressions * 100 if total_impressions else 0
+    cpc = total_spend / total_clicks if total_clicks else 0
+    click_to_atc = total_atc / total_clicks * 100 if total_clicks else 0
+    checkout_to_purchase = total_purchases / total_checkout * 100 if total_checkout else 0
+    roas = weighted_average(df[ROAS_COL], df[SPEND_COL])
+
+    suggestions: list[tuple[str, str, str]] = []
+
+    if ctr < 1:
+        suggestions.append(
+            (
+                "bad",
+                "素材与受众需要优先排查",
+                f"整体链接 CTR 为 {ctr:.2f}%，低于 1%。优先测试首屏更直接的产品卖点、不同角度素材，并拆分高意图受众与宽泛受众。",
+            )
+        )
+    else:
+        suggestions.append(
+            (
+                "good",
+                "点击吸引力达标",
+                f"整体链接 CTR 为 {ctr:.2f}%，素材能吸引用户进入落地页。下一步重点看加购率、结账率和 ROAS。",
+            )
+        )
+
+    if total_clicks > 0 and click_to_atc < 3:
+        suggestions.append(
+            (
+                "warn",
+                "落地页承接可能偏弱",
+                f"点击到加购率为 {click_to_atc:.2f}%。建议检查产品页加载速度、价格信息、变体选择、评价和信任背书。",
+            )
+        )
+
+    if total_atc > 0 and total_purchases == 0:
+        suggestions.append(
+            (
+                "bad",
+                "加购后没有形成购买",
+                "已有加购但购买成效为 0。建议立刻检查支付网关、运费、折扣码、库存状态，并建立加购未购买再营销。",
+            )
+        )
+
+    if total_checkout > 0 and checkout_to_purchase < 25:
+        suggestions.append(
+            (
+                "warn",
+                "结账流失较高",
+                f"发起结账到购买转化率为 {checkout_to_purchase:.2f}%。请重点检查结账页费用突增、支付方式覆盖和移动端表单体验。",
+            )
+        )
+
+    if total_spend > 100 and total_purchases == 0:
+        suggestions.append(
+            (
+                "bad",
+                "消耗已进入止损区间",
+                "总花费超过 $100 且没有购买。建议暂停明显低效广告组，把预算转向再营销或重新测试产品页与素材组合。",
+            )
+        )
+
+    if roas >= 2:
+        suggestions.append(
+            (
+                "good",
+                "存在可放量信号",
+                f"按花费加权后的购物 ROAS 为 {roas:.2f}。可以小步提升预算，并观察 CPA、频次和 CTR 是否同步恶化。",
+            )
+        )
+    elif total_purchases > 0:
+        suggestions.append(
+            (
+                "warn",
+                "有转化但利润空间需复核",
+                f"当前购物 ROAS 为 {roas:.2f}，建议结合毛利率判断盈亏线，并按广告组筛掉高花费低回报单元。",
+            )
+        )
+
+    if cpc > 2:
+        suggestions.append(
+            (
+                "warn",
+                "点击成本偏高",
+                f"当前 CPC 为 ${cpc:.2f}。如果客单价不高，建议增加低成本素材测试，并关注 CPM 是否由受众竞争推高。",
+            )
+        )
+
+    return suggestions
+
+
+def render_suggestions(df: pd.DataFrame, daily_df: pd.DataFrame) -> None:
+    suggestions = build_suggestions(df, daily_df)
+    for level, title, body in suggestions:
+        st.markdown(
+            f"""
+            <div class="suggestion {level}">
+                <div class="suggestion-title">{title}</div>
+                <div class="suggestion-body">{body}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_data_quality(df: pd.DataFrame) -> None:
+    present = [col for col in CANONICAL_COLUMNS if col in df.columns]
+    missing = [col for col in CANONICAL_COLUMNS if col not in df.columns]
+
+    with st.expander("数据字段检查", expanded=False):
+        st.write("已识别字段：", "、".join(present))
+        if missing:
+            st.write("未识别字段：", "、".join(missing))
+        st.dataframe(df.head(30), use_container_width=True, hide_index=True)
+
+
+def render_sidebar(df: pd.DataFrame) -> pd.DataFrame:
+    st.sidebar.header("筛选")
+    min_date = df[DATE_COL].min().date()
+    max_date = df[DATE_COL].max().date()
+    selected_range = st.sidebar.date_input(
+        "日期范围",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
+    )
+
+    filtered = df.copy()
+    if isinstance(selected_range, tuple) and len(selected_range) == 2:
+        start, end = selected_range
+        filtered = filtered[
+            (filtered[DATE_COL].dt.date >= start) & (filtered[DATE_COL].dt.date <= end)
+        ]
+
+    available_dimensions = [col for col in DIMENSION_CANDIDATES if col in filtered.columns]
+    for dim in available_dimensions:
+        values = sorted(str(v) for v in filtered[dim].dropna().unique())
+        if not values:
+            continue
+        selected = st.sidebar.multiselect(
+            dim,
+            values,
+            default=[],
+            help="留空表示不过滤该维度。",
+        )
+        if selected:
+            filtered = filtered[filtered[dim].astype(str).isin(selected)]
+
+    st.sidebar.caption(f"当前样本：{len(filtered):,} 行")
+    return filtered
+
+
+def main() -> None:
+    inject_css()
+    render_header()
+
+    uploaded_file = st.file_uploader(
+        "上传 Meta 广告数据文件",
+        type=["csv", "xlsx", "xls"],
+        help="支持 Meta Ads Manager 导出的中文 CSV、Excel 文件。",
+    )
+
+    if uploaded_file is None:
+        st.info("请先上传 CSV 或 Excel 文件。上传后会自动生成 KPI、趋势、漏斗、排行和诊断建议。")
+        with st.expander("需要包含哪些字段？", expanded=True):
+            st.write(
+                "建议至少包含：报告开始日期、已花费金额 (USD)、展示次数、链接点击量、加入购物车次数、结账发起次数、成效、广告花费回报 (ROAS) - 购物。"
+            )
+        return
+
+    try:
+        raw_df = parse_uploaded_file(uploaded_file)
+        df = preprocess(raw_df)
+    except Exception as exc:
+        st.error(f"数据读取或清洗失败：{exc}")
+        return
+
+    filtered_df = render_sidebar(df)
+    if filtered_df.empty:
+        st.warning("当前筛选条件下没有数据。")
+        return
+
+    daily_df = build_daily_df(filtered_df)
+
+    render_data_quality(filtered_df)
+    render_kpis(daily_df)
+
+    tab_overview, tab_funnel, tab_rank, tab_raw = st.tabs(
+        ["趋势效率", "转化漏斗", "广告排行", "明细导出"]
+    )
+
+    with tab_overview:
+        render_section_title(f"每日花费与 {glossary_term('ROAS')}")
+        render_trend_chart(daily_df)
+        render_section_title(f"{glossary_term('CTR')} 与 {glossary_term('CPC')}")
+        render_efficiency_chart(daily_df)
+
+    with tab_funnel:
+        render_section_title("电商转化漏斗")
+        render_funnel(filtered_df)
+        render_section_title("自动化诊断与策略建议")
+        render_suggestions(filtered_df, daily_df)
+
+    with tab_rank:
+        render_section_title("广告层级表现排行")
+        render_dimension_rank(filtered_df)
+
+    with tab_raw:
+        render_section_title("每日聚合数据")
+        st.dataframe(daily_df, use_container_width=True, hide_index=True)
+        st.download_button(
+            "下载每日聚合 CSV",
+            data=daily_df.to_csv(index=False).encode("utf-8-sig"),
+            file_name="meta_ads_daily_analysis.csv",
+            mime="text/csv",
+        )
+
+
+if __name__ == "__main__":
+    main()
