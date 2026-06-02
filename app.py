@@ -646,6 +646,7 @@ def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
     df = raw_df.copy()
     df.columns = [normalize_label(col) for col in df.columns]
     df = rename_columns(df)
+    has_all_clicks_col = ALL_CLICKS_COL in df.columns
 
     if DATE_COL not in df.columns:
         raise ValueError(f"未找到日期列。请确认文件里包含“{DATE_COL}”或“日期”。")
@@ -658,6 +659,9 @@ def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
     df = ensure_columns(df, NUMERIC_COLUMNS)
     for col in NUMERIC_COLUMNS:
         df[col] = clean_numeric(df[col])
+
+    if (not has_all_clicks_col or df[ALL_CLICKS_COL].sum() == 0) and df[CLICKS_COL].sum() > 0:
+        df[ALL_CLICKS_COL] = df[CLICKS_COL]
 
     df = df.sort_values(DATE_COL).reset_index(drop=True)
     return df
@@ -890,17 +894,34 @@ def render_cpa_change_table(daily_df: pd.DataFrame) -> None:
 
 
 def build_funnel_figure(steps: pd.DataFrame) -> go.Figure:
-    fig = px.funnel(
-        steps,
-        x="数量",
-        y="环节",
-        color="环节",
-        color_discrete_sequence=["#0066cc", "#4d9de0", "#8bbce8", "#c7d9ec", "#e4edf7"],
-    )
-    fig.update_traces(
-        textinfo="value+percent previous",
-        texttemplate="%{value:,.0f}<br>%{percentPrevious}",
-        hovertemplate="%{y}<br>数量: %{x:,.0f}<br>相邻转化率: %{percentPrevious}<extra></extra>",
+    steps = steps.copy()
+    rates = []
+    labels = []
+    previous_value = None
+
+    for _, row in steps.iterrows():
+        current_value = float(row["数量"])
+        if previous_value is None:
+            rate_text = "入口"
+        else:
+            rate = current_value / previous_value * 100 if previous_value else 0
+            rate_text = percentage(rate)
+        rates.append(rate_text)
+        labels.append(f"{number(current_value)}<br>{rate_text}")
+        previous_value = current_value
+
+    colors = ["#0066cc", "#4d9de0", "#8bbce8", "#c7d9ec", "#e4edf7"]
+    fig = go.Figure(
+        go.Funnel(
+            y=steps["环节"],
+            x=steps["数量"],
+            text=labels,
+            textinfo="text",
+            customdata=rates,
+            marker=dict(color=colors[: len(steps)]),
+            connector=dict(line=dict(color="#d2d2d7", width=1)),
+            hovertemplate="%{y}<br>数量: %{x:,.0f}<br>相邻转化率: %{customdata}<extra></extra>",
+        )
     )
     fig.update_layout(
         height=440,
