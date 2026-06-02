@@ -26,6 +26,9 @@ CTR_ALL_COL = "点击率（全部）"
 ALL_CLICKS_COL = "点击量"
 CLICKS_COL = "链接点击量"
 LANDING_PAGE_VIEWS_COL = "落地页浏览量"
+VIDEO_PLAYS_COL = "视频播放量"
+VIDEO_3S_RATE_COL = "单次展示的播放视频达3秒率"
+VIDEO_AVG_PLAY_TIME_COL = "视频平均播放时长"
 ATC_COL = "加入购物车次数"
 CHECKOUT_COL = "结账发起次数"
 PURCHASES_COL = "成效"
@@ -48,6 +51,20 @@ CANONICAL_COLUMNS = {
         "Landing page views",
         "Landing Page Views",
     ],
+    VIDEO_PLAYS_COL: ["视频播放量", "视频播放次数", "Video plays", "Video plays at 100%"],
+    VIDEO_3S_RATE_COL: [
+        "单次展示的播放视频达3秒率",
+        "播放视频达3秒率",
+        "3秒视频播放率",
+        "3-second video plays per impression",
+        "3-second video play rate",
+    ],
+    VIDEO_AVG_PLAY_TIME_COL: [
+        "视频平均播放时长",
+        "平均视频播放时长",
+        "Video average play time",
+        "Average video play time",
+    ],
     ATC_COL: ["加入购物车次数", "加入购物车", "Adds to cart", "Add to cart"],
     CHECKOUT_COL: ["结账发起次数", "发起结账", "Checkouts initiated", "Initiate checkout"],
     PURCHASES_COL: ["成效", "购买", "购物次数", "Purchases", "Results"],
@@ -64,6 +81,9 @@ NUMERIC_COLUMNS = [
     ALL_CLICKS_COL,
     CLICKS_COL,
     LANDING_PAGE_VIEWS_COL,
+    VIDEO_PLAYS_COL,
+    VIDEO_3S_RATE_COL,
+    VIDEO_AVG_PLAY_TIME_COL,
     ATC_COL,
     CHECKOUT_COL,
     PURCHASES_COL,
@@ -72,6 +92,8 @@ NUMERIC_COLUMNS = [
 
 
 DIMENSION_CANDIDATES = ["广告系列名称", "广告组名称", "广告名称", "Campaign name", "Ad set name", "Ad name"]
+
+VIDEO_SOURCE_COLUMNS = [VIDEO_PLAYS_COL, VIDEO_3S_RATE_COL, VIDEO_AVG_PLAY_TIME_COL]
 
 
 GLOSSARY = {
@@ -647,6 +669,7 @@ def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [normalize_label(col) for col in df.columns]
     df = rename_columns(df)
     has_all_clicks_col = ALL_CLICKS_COL in df.columns
+    present_columns = set(df.columns)
 
     if DATE_COL not in df.columns:
         raise ValueError(f"未找到日期列。请确认文件里包含“{DATE_COL}”或“日期”。")
@@ -664,6 +687,7 @@ def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
         df[ALL_CLICKS_COL] = df[CLICKS_COL]
 
     df = df.sort_values(DATE_COL).reset_index(drop=True)
+    df.attrs["present_columns"] = present_columns
     return df
 
 
@@ -676,7 +700,11 @@ def weighted_average(values: pd.Series, weights: pd.Series) -> float:
 
 
 def build_daily_df(df: pd.DataFrame) -> pd.DataFrame:
-    roas_source = df.assign(_roas_value=df[ROAS_COL] * df[SPEND_COL])
+    roas_source = df.assign(
+        _roas_value=df[ROAS_COL] * df[SPEND_COL],
+        _video_3s_rate_value=df[VIDEO_3S_RATE_COL] * df[IMPRESSIONS_COL],
+        _video_avg_time_value=df[VIDEO_AVG_PLAY_TIME_COL] * df[VIDEO_PLAYS_COL],
+    )
     daily = (
         roas_source.groupby(DATE_COL, as_index=False)
         .agg(
@@ -687,10 +715,13 @@ def build_daily_df(df: pd.DataFrame) -> pd.DataFrame:
                 ALL_CLICKS_COL: "sum",
                 CLICKS_COL: "sum",
                 LANDING_PAGE_VIEWS_COL: "sum",
+                VIDEO_PLAYS_COL: "sum",
                 ATC_COL: "sum",
                 CHECKOUT_COL: "sum",
                 PURCHASES_COL: "sum",
                 "_roas_value": "sum",
+                "_video_3s_rate_value": "sum",
+                "_video_avg_time_value": "sum",
             }
         )
         .sort_values(DATE_COL)
@@ -702,7 +733,10 @@ def build_daily_df(df: pd.DataFrame) -> pd.DataFrame:
     daily["CVR 点击到购买 (%)"] = safe_divide(daily[PURCHASES_COL], daily[CLICKS_COL]) * 100
     daily["CPA 购买成本 (USD)"] = safe_divide(daily[SPEND_COL], daily[PURCHASES_COL])
     daily[ROAS_COL] = safe_divide(daily["_roas_value"], daily[SPEND_COL])
-    daily = daily.drop(columns=["_roas_value"])
+    daily[VIDEO_3S_RATE_COL] = safe_divide(daily["_video_3s_rate_value"], daily[IMPRESSIONS_COL])
+    daily[VIDEO_AVG_PLAY_TIME_COL] = safe_divide(daily["_video_avg_time_value"], daily[VIDEO_PLAYS_COL])
+    daily = daily.drop(columns=["_roas_value", "_video_3s_rate_value", "_video_avg_time_value"])
+    daily.attrs["present_columns"] = df.attrs.get("present_columns", set(df.columns))
     return daily
 
 
@@ -893,7 +927,48 @@ def render_cpa_change_table(daily_df: pd.DataFrame) -> None:
     )
 
 
-def render_custom_compare(daily_df: pd.DataFrame) -> None:
+def aggregate_compare_by_date(df: pd.DataFrame, group_cols: list[str] | None = None) -> pd.DataFrame:
+    group_cols = group_cols or []
+    source = df.assign(
+        _roas_value=df[ROAS_COL] * df[SPEND_COL],
+        _video_3s_rate_value=df[VIDEO_3S_RATE_COL] * df[IMPRESSIONS_COL],
+        _video_avg_time_value=df[VIDEO_AVG_PLAY_TIME_COL] * df[VIDEO_PLAYS_COL],
+    )
+    grouped = (
+        source.groupby([DATE_COL] + group_cols, as_index=False)
+        .agg(
+            {
+                SPEND_COL: "sum",
+                IMPRESSIONS_COL: "sum",
+                REACH_COL: "sum",
+                ALL_CLICKS_COL: "sum",
+                CLICKS_COL: "sum",
+                LANDING_PAGE_VIEWS_COL: "sum",
+                VIDEO_PLAYS_COL: "sum",
+                ATC_COL: "sum",
+                CHECKOUT_COL: "sum",
+                PURCHASES_COL: "sum",
+                "_roas_value": "sum",
+                "_video_3s_rate_value": "sum",
+                "_video_avg_time_value": "sum",
+            }
+        )
+        .sort_values([DATE_COL] + group_cols)
+    )
+    grouped["整体CTR (%)"] = safe_divide(grouped[CLICKS_COL], grouped[IMPRESSIONS_COL]) * 100
+    grouped["CPC (USD)"] = safe_divide(grouped[SPEND_COL], grouped[CLICKS_COL])
+    grouped["CPM (USD)"] = safe_divide(grouped[SPEND_COL], grouped[IMPRESSIONS_COL]) * 1000
+    grouped["CVR 点击到购买 (%)"] = safe_divide(grouped[PURCHASES_COL], grouped[CLICKS_COL]) * 100
+    grouped["CPA 购买成本 (USD)"] = safe_divide(grouped[SPEND_COL], grouped[PURCHASES_COL])
+    grouped[ROAS_COL] = safe_divide(grouped["_roas_value"], grouped[SPEND_COL])
+    grouped[VIDEO_3S_RATE_COL] = safe_divide(grouped["_video_3s_rate_value"], grouped[IMPRESSIONS_COL])
+    grouped[VIDEO_AVG_PLAY_TIME_COL] = safe_divide(grouped["_video_avg_time_value"], grouped[VIDEO_PLAYS_COL])
+    return grouped.drop(columns=["_roas_value", "_video_3s_rate_value", "_video_avg_time_value"])
+
+
+def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> None:
+    present_columns = daily_df.attrs.get("present_columns", set(daily_df.columns))
+    has_video_table = all(col in present_columns for col in VIDEO_SOURCE_COLUMNS)
     metric_options = {
         "花费 (USD)": SPEND_COL,
         "展示次数": IMPRESSIONS_COL,
@@ -911,9 +986,25 @@ def render_custom_compare(daily_df: pd.DataFrame) -> None:
         "CPA (USD)": "CPA 购买成本 (USD)",
         "ROAS": ROAS_COL,
     }
+    if has_video_table:
+        metric_options.update(
+            {
+                "视频播放量": VIDEO_PLAYS_COL,
+                "单次展示的播放视频达3秒率": VIDEO_3S_RATE_COL,
+                "视频平均播放时长": VIDEO_AVG_PLAY_TIME_COL,
+            }
+        )
+
     available_options = {
         label: column for label, column in metric_options.items() if column in daily_df.columns
     }
+
+    compare_scope = st.radio(
+        "对比范围",
+        ["总量对比", "按广告名称对比"],
+        horizontal=True,
+        help="总量对比会汇总所有广告；按广告名称对比会把不同广告名称拆成多条线。",
+    )
 
     selected_labels = st.multiselect(
         "选择要对比的数据",
@@ -927,6 +1018,28 @@ def render_custom_compare(daily_df: pd.DataFrame) -> None:
         st.warning("请至少选择一个指标。")
         return
 
+    ad_name_col = next((col for col in DIMENSION_CANDIDATES if col in filtered_df.columns), None)
+    selected_ad_names: list[str] = []
+    if compare_scope == "按广告名称对比":
+        if ad_name_col is None:
+            st.warning("当前数据没有检测到广告名称列，无法按广告名称对比。")
+            return
+        ad_summary = (
+            filtered_df.groupby(ad_name_col, as_index=False)[SPEND_COL]
+            .sum()
+            .sort_values(SPEND_COL, ascending=False)
+        )
+        ad_options = [str(name) for name in ad_summary[ad_name_col].dropna().tolist()]
+        selected_ad_names = st.multiselect(
+            "选择广告名称",
+            ad_options,
+            default=ad_options[: min(5, len(ad_options))],
+            help="建议一次选择 3-5 个广告，图表更清楚。",
+        )
+        if not selected_ad_names:
+            st.warning("请至少选择一个广告名称。")
+            return
+
     mode = st.radio(
         "对比模式",
         ["标准化对比", "原始数值对比"],
@@ -934,28 +1047,49 @@ def render_custom_compare(daily_df: pd.DataFrame) -> None:
         help="标准化会把每个指标缩放到 0-100，适合不同量级一起比较。",
     )
 
-    compare_df = daily_df[[DATE_COL] + [available_options[label] for label in selected_labels]].copy()
-    compare_df = compare_df.rename(columns={available_options[label]: label for label in selected_labels})
+    if compare_scope == "总量对比":
+        compare_df = daily_df[[DATE_COL] + [available_options[label] for label in selected_labels]].copy()
+        compare_df = compare_df.rename(columns={available_options[label]: label for label in selected_labels})
+        series_id_cols: list[str] = []
+    else:
+        ad_df = filtered_df[filtered_df[ad_name_col].astype(str).isin(selected_ad_names)].copy()
+        compare_df = aggregate_compare_by_date(ad_df, [ad_name_col])
+        compare_df = compare_df[
+            [DATE_COL, ad_name_col] + [available_options[label] for label in selected_labels]
+        ].copy()
+        compare_df = compare_df.rename(columns={available_options[label]: label for label in selected_labels})
+        series_id_cols = [ad_name_col]
 
     plot_df = compare_df.copy()
     y_title = "数值"
     if mode == "标准化对比":
-        for label in selected_labels:
-            max_value = plot_df[label].max()
-            plot_df[label] = plot_df[label] / max_value * 100 if max_value else 0
+        if compare_scope == "总量对比":
+            for label in selected_labels:
+                max_value = plot_df[label].max()
+                plot_df[label] = plot_df[label] / max_value * 100 if max_value else 0
+        else:
+            for label in selected_labels:
+                plot_df[label] = plot_df.groupby(ad_name_col)[label].transform(
+                    lambda series: series / series.max() * 100 if series.max() else 0
+                )
         y_title = "标准化指数 (0-100)"
 
     long_df = plot_df.melt(
-        id_vars=DATE_COL,
+        id_vars=[DATE_COL] + series_id_cols,
         value_vars=selected_labels,
         var_name="指标",
         value_name="数值",
     )
+    if compare_scope == "按广告名称对比":
+        long_df["系列"] = long_df[ad_name_col].astype(str) + " · " + long_df["指标"]
+    else:
+        long_df["系列"] = long_df["指标"]
+
     fig = px.line(
         long_df,
         x=DATE_COL,
         y="数值",
-        color="指标",
+        color="系列",
         markers=True,
         color_discrete_sequence=["#0066cc", "#34a853", "#fbbc04", "#ea4335", "#8e44ad", "#00a0b0"],
     )
@@ -1397,7 +1531,7 @@ def main() -> None:
 
     with tab_compare:
         render_section_title("自定义数据对比")
-        render_custom_compare(daily_df)
+        render_custom_compare(filtered_df, daily_df)
 
     with tab_funnel:
         render_section_title(f"广告转化漏斗与单次成效费用 {glossary_term('CPA')}")
