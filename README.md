@@ -14,7 +14,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-打开终端输出的本地地址，通常是 `http://localhost:8501`，然后上传 Meta 广告报表文件即可。
+打开终端输出的本地地址，通常是 `http://localhost:8501`，然后上传一个或多个 Meta 广告报表文件即可。上传多个文件时，可选择是否按整行内容去重。
 
 ## 改动日志
 

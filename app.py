@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="Meta Ads 数据分析看板",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -151,61 +151,102 @@ def inject_css() -> None:
         """
         <style>
         :root {
-            --ink: #18202a;
-            --muted: #687385;
-            --paper: #f6f3ed;
-            --panel: #fffefa;
-            --line: rgba(24, 32, 42, 0.12);
-            --green: #236a4e;
-            --amber: #b6641f;
-            --red: #a53d2f;
-            --blue: #275f8f;
+            --meta-primary: #0064e0;
+            --meta-primary-deep: #0457cb;
+            --meta-canvas: #ffffff;
+            --meta-soft: #f1f4f7;
+            --meta-ink-deep: #0a1317;
+            --meta-ink: #1c1e21;
+            --meta-charcoal: #444950;
+            --meta-steel: #5d6c7b;
+            --meta-stone: #8595a4;
+            --meta-hairline: #ced0d4;
+            --meta-hairline-soft: #dee3e9;
+            --meta-success: #31a24c;
+            --meta-warning: #f2a918;
+            --meta-critical: #e41e3f;
+            --ink: var(--meta-ink-deep);
+            --muted: var(--meta-steel);
+            --paper: var(--meta-soft);
+            --panel: var(--meta-canvas);
+            --line: var(--meta-hairline-soft);
+            --green: var(--meta-success);
+            --amber: var(--meta-warning);
+            --red: var(--meta-critical);
+            --blue: var(--meta-primary);
         }
 
         .stApp {
-            background:
-                linear-gradient(90deg, rgba(24,32,42,0.045) 1px, transparent 1px),
-                linear-gradient(rgba(24,32,42,0.035) 1px, transparent 1px),
-                var(--paper);
-            background-size: 28px 28px;
+            background: var(--meta-soft);
             color: var(--ink);
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
         }
 
         h1, h2, h3 {
             letter-spacing: 0;
+            color: var(--meta-ink-deep);
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
         }
 
         [data-testid="stSidebar"] {
-            background: #1f252c;
-            color: #fffefa;
+            background: var(--meta-canvas);
+            color: var(--meta-ink);
+            border-right: 1px solid var(--meta-hairline-soft);
         }
 
         [data-testid="stSidebar"] label,
         [data-testid="stSidebar"] p,
         [data-testid="stSidebar"] span {
-            color: #fffefa;
+            color: var(--meta-ink);
+        }
+
+        .stButton button,
+        .stDownloadButton button,
+        [data-testid="stBaseButton-secondary"] {
+            border-radius: 100px !important;
+            border: 1px solid rgba(10, 19, 23, 0.12) !important;
+            font-weight: 700 !important;
+        }
+
+        .stFileUploader,
+        [data-testid="stFileUploader"],
+        [data-testid="stExpander"],
+        [data-testid="stDataFrame"],
+        .stAlert {
+            border-radius: 24px;
+        }
+
+        [data-testid="stTabs"] button {
+            border-radius: 100px !important;
+            font-weight: 700;
+        }
+
+        [data-testid="stTabs"] [aria-selected="true"] {
+            color: var(--meta-primary) !important;
         }
 
         .hero {
-            border: 1px solid var(--line);
-            background: rgba(255, 254, 250, 0.82);
-            padding: 24px 28px;
-            margin-bottom: 18px;
+            border: 1px solid var(--meta-hairline-soft);
+            background: var(--meta-canvas);
+            border-radius: 24px;
+            padding: 20px 24px;
+            margin-bottom: 14px;
         }
 
         .hero-title {
-            font-size: 34px;
-            font-weight: 760;
-            line-height: 1.1;
-            margin: 0 0 8px 0;
-            color: var(--ink);
+            font-size: 36px;
+            font-weight: 500;
+            line-height: 1.17;
+            margin: 0 0 6px 0;
+            color: var(--meta-ink-deep);
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
         }
 
         .hero-copy {
             max-width: 920px;
-            font-size: 16px;
-            line-height: 1.65;
-            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.42;
+            color: var(--meta-steel);
             margin: 0;
         }
 
@@ -218,21 +259,23 @@ def inject_css() -> None:
 
         .kpi {
             min-height: 122px;
-            border: 1px solid var(--line);
+            border: 1px solid var(--meta-hairline-soft);
             background: var(--panel);
-            padding: 16px;
+            border-radius: 24px;
+            padding: 24px;
         }
 
         .kpi-label {
-            color: var(--muted);
-            font-size: 13px;
+            color: var(--meta-steel);
+            font-size: 14px;
+            font-weight: 700;
             margin-bottom: 12px;
         }
 
         .kpi-value {
-            color: var(--ink);
-            font-size: 28px;
-            font-weight: 760;
+            color: var(--meta-ink-deep);
+            font-size: 32px;
+            font-weight: 500;
             line-height: 1.1;
         }
 
@@ -243,11 +286,94 @@ def inject_css() -> None:
         }
 
         .section-title {
-            color: var(--ink);
+            color: var(--meta-ink-deep);
             font-size: 22px;
-            font-weight: 730;
+            font-weight: 500;
             line-height: 1.25;
-            margin: 18px 0 10px 0;
+            margin: 16px 0 8px 0;
+        }
+
+        [data-testid="stWidgetLabel"] {
+            margin-bottom: 3px;
+        }
+
+        [data-testid="stWidgetLabel"] label,
+        [data-testid="stWidgetLabel"] p {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--meta-charcoal);
+            line-height: 1.2;
+        }
+
+        [data-testid="stFileUploader"] {
+            padding: 8px 10px;
+            border: 1px solid var(--meta-hairline-soft);
+            background: var(--meta-canvas);
+        }
+
+        [data-testid="stFileUploader"] section {
+            padding: 8px 10px;
+            min-height: 52px;
+        }
+
+        [data-testid="stFileUploader"] small,
+        [data-testid="stFileUploader"] span,
+        [data-testid="stFileUploader"] p {
+            font-size: 12px;
+            line-height: 1.25;
+        }
+
+        [data-testid="stAlert"] {
+            padding: 8px 12px;
+            margin: 6px 0;
+            border-radius: 16px;
+        }
+
+        [data-testid="stAlert"] div {
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        [data-testid="stExpander"] {
+            border-radius: 16px;
+            border-color: var(--meta-hairline-soft);
+            margin: 6px 0 10px 0;
+        }
+
+        [data-testid="stExpander"] details > summary {
+            min-height: 36px;
+            padding: 6px 12px;
+        }
+
+        [data-testid="stNumberInput"] input,
+        [data-testid="stTextInput"] input,
+        [data-testid="stSelectbox"] div,
+        [data-testid="stMultiSelect"] div {
+            min-height: 34px;
+            font-size: 13px;
+        }
+
+        [data-testid="stMultiSelect"] [data-baseweb="tag"] {
+            margin: 2px;
+            height: 24px;
+            border-radius: 100px;
+            background: var(--meta-soft);
+        }
+
+        [data-testid="stCheckbox"] {
+            margin-top: 18px;
+        }
+
+        [data-testid="stCheckbox"] label {
+            min-height: 34px;
+            padding: 5px 10px;
+            border: 1px solid var(--meta-hairline-soft);
+            border-radius: 100px;
+            background: var(--meta-canvas);
+        }
+
+        [data-testid="stHorizontalBlock"] {
+            gap: 10px;
         }
 
         .abbr {
@@ -270,7 +396,7 @@ def inject_css() -> None:
             max-width: 260px;
             padding: 9px 10px;
             background: #1f252c;
-            color: #fffefa;
+            color: #ffffff;
             border: 1px solid rgba(255, 254, 250, 0.16);
             font-size: 12px;
             font-weight: 560;
@@ -355,7 +481,7 @@ def inject_css() -> None:
 
         .funnel-label {
             color: #6e6e73;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 14px;
             font-weight: 400;
             line-height: 1.35;
@@ -364,8 +490,8 @@ def inject_css() -> None:
         }
 
         .funnel-value {
-            color: #1d1d1f;
-            font-family: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--meta-ink-deep);
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 34px;
             font-weight: 600;
             line-height: 1.12;
@@ -374,7 +500,7 @@ def inject_css() -> None:
 
         .funnel-rate {
             color: #6e6e73;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 12px;
             font-weight: 400;
             margin-top: 10px;
@@ -388,9 +514,10 @@ def inject_css() -> None:
             min-height: 28px;
             padding: 5px 12px;
             border-radius: 9999px;
-            background: #f5f5f7;
-            color: #1d1d1f;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--meta-canvas);
+            color: var(--meta-ink-deep);
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
+            border: 1px solid var(--meta-hairline);
             font-size: 13px;
             font-weight: 400;
             letter-spacing: -0.12px;
@@ -398,17 +525,17 @@ def inject_css() -> None:
         }
 
         .apple-funnel-panel {
-            background: #f5f5f7;
-            border-radius: 18px;
-            padding: 22px;
-            border: 1px solid rgba(0, 0, 0, 0.04);
+            background: var(--meta-canvas);
+            border-radius: 32px;
+            padding: 32px;
+            border: 1px solid var(--meta-hairline-soft);
         }
 
         .apple-funnel-title {
-            color: #1d1d1f;
-            font-family: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 24px;
-            font-weight: 600;
+            color: var(--meta-ink-deep);
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
+            font-size: 28px;
+            font-weight: 500;
             line-height: 1.15;
             letter-spacing: -0.28px;
             margin: 0 0 4px 0;
@@ -416,7 +543,7 @@ def inject_css() -> None:
 
         .apple-funnel-copy {
             color: #6e6e73;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 14px;
             font-weight: 400;
             line-height: 1.45;
@@ -425,8 +552,8 @@ def inject_css() -> None:
         }
 
         .apple-rate-title {
-            color: #1d1d1f;
-            font-family: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--meta-ink-deep);
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 24px;
             font-weight: 600;
             line-height: 1.15;
@@ -447,7 +574,7 @@ def inject_css() -> None:
             display: block;
             height: 100%;
             border-radius: 9999px;
-            background: #0066cc;
+            background: var(--meta-primary);
         }
 
         .flow-funnel {
@@ -466,8 +593,8 @@ def inject_css() -> None:
         }
 
         .flow-stage-name {
-            color: #1d1d1f;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--meta-ink-deep);
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 14px;
             font-weight: 600;
             line-height: 1.25;
@@ -488,18 +615,18 @@ def inject_css() -> None:
             height: 100%;
             min-width: 38px;
             border-radius: 9999px;
-            background: #0066cc;
+            background: var(--meta-primary);
             color: #ffffff;
             padding-right: 14px;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 13px;
             font-weight: 600;
             letter-spacing: -0.12px;
         }
 
         .flow-value {
-            color: #1d1d1f;
-            font-family: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--meta-ink-deep);
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 24px;
             font-weight: 600;
             line-height: 1.1;
@@ -529,9 +656,9 @@ def inject_css() -> None:
             border-radius: 9999px;
             border: 1px solid #d2d2d7;
             background: #ffffff;
-            color: #0066cc;
+            color: var(--meta-primary);
             padding: 5px 11px;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 13px;
             font-weight: 600;
             letter-spacing: -0.12px;
@@ -540,7 +667,7 @@ def inject_css() -> None:
 
         .flow-connector-caption {
             color: #6e6e73;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 12px;
             letter-spacing: -0.12px;
             text-align: right;
@@ -555,7 +682,7 @@ def inject_css() -> None:
             border: 1px solid #e0e0e0;
             border-radius: 18px;
             background: #ffffff;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
         }
 
         .compare-style-table th,
@@ -563,14 +690,14 @@ def inject_css() -> None:
             border-bottom: 1px solid #f0f0f0;
             border-right: 1px solid #f0f0f0;
             padding: 10px 12px;
-            color: #1d1d1f;
+            color: var(--meta-ink-deep);
             font-size: 12px;
             letter-spacing: -0.12px;
             vertical-align: middle;
         }
 
         .compare-style-table th {
-            background: #f5f5f7;
+            background: var(--meta-soft);
             color: #6e6e73;
             font-weight: 600;
         }
@@ -643,14 +770,14 @@ def inject_css() -> None:
             border-radius: 9999px;
             background: #ffffff;
             color: #1d1d1f;
-            font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
             font-size: 14px;
             letter-spacing: -0.224px;
         }
 
         [data-testid="stRadio"] label:has(input:checked) {
-            border-color: #0066cc;
-            color: #0066cc;
+            border-color: var(--meta-primary);
+            color: var(--meta-primary);
             background: #f5f9ff;
         }
 
@@ -811,6 +938,19 @@ def parse_uploaded_file(uploaded_file) -> pd.DataFrame:
             return pd.read_csv(uploaded_file, encoding="gb18030")
 
     return pd.read_excel(uploaded_file)
+
+
+def parse_uploaded_files(uploaded_files: list) -> pd.DataFrame:
+    frames = []
+    for uploaded_file in uploaded_files:
+        frame = parse_uploaded_file(uploaded_file)
+        frame["_来源文件"] = uploaded_file.name
+        frames.append(frame)
+
+    if not frames:
+        return pd.DataFrame()
+
+    return pd.concat(frames, ignore_index=True, sort=False)
 
 
 def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -1000,8 +1140,8 @@ def render_trend_chart(daily_df: pd.DataFrame) -> None:
     fig.update_layout(
         height=430,
         margin=dict(l=10, r=10, t=20, b=10),
-        plot_bgcolor="#fffefa",
-        paper_bgcolor="#fffefa",
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         xaxis=dict(title="", showgrid=False),
@@ -1035,8 +1175,8 @@ def render_efficiency_chart(daily_df: pd.DataFrame) -> None:
     fig.update_layout(
         height=380,
         margin=dict(l=10, r=10, t=20, b=10),
-        plot_bgcolor="#fffefa",
-        paper_bgcolor="#fffefa",
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         xaxis=dict(title="", showgrid=False),
@@ -1075,8 +1215,8 @@ def render_cpa_change_table(daily_df: pd.DataFrame) -> None:
     fig.update_layout(
         height=320,
         margin=dict(l=10, r=10, t=12, b=10),
-        plot_bgcolor="#fffefa",
-        paper_bgcolor="#fffefa",
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
         hovermode="x unified",
         xaxis=dict(title="", showgrid=False),
         yaxis=dict(title="CPA (USD)", gridcolor="rgba(24,32,42,0.08)"),
@@ -1201,22 +1341,34 @@ def render_custom_compare_panel(
 ) -> None:
     key_prefix = f"compare_{panel_index}"
 
-    compare_scope = st.radio(
-        "对比范围",
-        ["总量对比", "按广告名称对比"],
-        horizontal=True,
-        help="总量对比会汇总所有广告；按广告名称对比会把不同广告名称拆成多条线。",
-        key=f"{key_prefix}_scope",
-    )
+    scope_col, mode_col = st.columns([1, 1])
+    with scope_col:
+        compare_scope = st.radio(
+            "对比范围",
+            ["总量对比", "按广告名称对比"],
+            horizontal=True,
+            help="总量对比会汇总所有广告；按广告名称对比会把不同广告名称拆成多条线。",
+            key=f"{key_prefix}_scope",
+        )
+    with mode_col:
+        mode = st.radio(
+            "对比模式",
+            ["标准化对比", "原始数值对比"],
+            horizontal=True,
+            help="标准化会把每个指标缩放到 0-100，适合不同量级一起比较。",
+            key=f"{key_prefix}_mode",
+        )
 
     default_labels = [label for label in ["花费 (USD)", "链接点击量", "购买次数", "CPA (USD)"] if label in available_options]
-    selected_labels = st.multiselect(
-        "选择要对比的数据",
-        list(available_options.keys()),
-        default=default_labels[: min(4, len(default_labels))],
-        help="选择多个指标后，会在同一张图中按日期对比。",
-        key=f"{key_prefix}_metrics",
-    )
+    metric_col, ad_col = st.columns([1.35, 1])
+    with metric_col:
+        selected_labels = st.multiselect(
+            "选择要对比的数据",
+            list(available_options.keys()),
+            default=default_labels[: min(4, len(default_labels))],
+            help="选择多个指标后，会在同一张图中按日期对比。",
+            key=f"{key_prefix}_metrics",
+        )
     selected_labels = [label for label in selected_labels if label in available_options]
 
     if not selected_labels:
@@ -1225,6 +1377,9 @@ def render_custom_compare_panel(
 
     ad_name_col = next((col for col in DIMENSION_CANDIDATES if col in filtered_df.columns), None)
     selected_ad_names: list[str] = []
+    with ad_col:
+        if compare_scope != "按广告名称对比":
+            st.caption("总量对比会自动汇总所有广告。")
     if compare_scope == "按广告名称对比":
         if ad_name_col is None:
             st.warning("当前数据没有检测到广告名称列，无法按广告名称对比。")
@@ -1235,24 +1390,17 @@ def render_custom_compare_panel(
             .sort_values(SPEND_COL, ascending=False)
         )
         ad_options = [str(name) for name in ad_summary[ad_name_col].dropna().tolist()]
-        selected_ad_names = st.multiselect(
-            "选择广告名称",
-            ad_options,
-            default=ad_options[: min(5, len(ad_options))],
-            help="建议一次选择 3-5 个广告，图表更清楚。",
-            key=f"{key_prefix}_ads",
-        )
+        with ad_col:
+            selected_ad_names = st.multiselect(
+                "选择广告名称",
+                ad_options,
+                default=ad_options[: min(5, len(ad_options))],
+                help="建议一次选择 3-5 个广告，图表更清楚。",
+                key=f"{key_prefix}_ads",
+            )
         if not selected_ad_names:
             st.warning("请至少选择一个广告名称。")
             return
-
-    mode = st.radio(
-        "对比模式",
-        ["标准化对比", "原始数值对比"],
-        horizontal=True,
-        help="标准化会把每个指标缩放到 0-100，适合不同量级一起比较。",
-        key=f"{key_prefix}_mode",
-    )
 
     if compare_scope == "总量对比":
         compare_df = daily_df[[DATE_COL] + [available_options[label] for label in selected_labels]].copy()
@@ -1336,8 +1484,8 @@ def render_custom_compare_panel(
     fig.update_layout(
         height=460,
         margin=dict(l=10, r=10, t=16, b=10),
-        plot_bgcolor="#fffefa",
-        paper_bgcolor="#fffefa",
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         xaxis=dict(title="", showgrid=False),
@@ -1354,14 +1502,18 @@ def render_custom_compare_panel(
 
 def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> None:
     available_options = get_compare_metric_options(daily_df)
-    panel_count = st.number_input(
-        "创建对比图数量",
-        min_value=1,
-        max_value=4,
-        value=1,
-        step=1,
-        help="可创建多个对比图，每个图保留独立的数据、广告和模式选择。",
-    )
+    count_col, hint_col = st.columns([0.85, 3])
+    with count_col:
+        panel_count = st.number_input(
+            "创建对比图数量",
+            min_value=1,
+            max_value=4,
+            value=1,
+            step=1,
+            help="可创建多个对比图，每个图保留独立的数据、广告和模式选择。",
+        )
+    with hint_col:
+        st.caption("每个对比图都有独立的数据、广告名称和显示模式选择。")
     for panel_index in range(int(panel_count)):
         with st.expander(f"对比图 {panel_index + 1}", expanded=True):
             render_custom_compare_panel(filtered_df, daily_df, available_options, panel_index)
@@ -1400,12 +1552,12 @@ def build_funnel_figure(steps: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         height=440,
         margin=dict(l=8, r=8, t=12, b=8),
-        plot_bgcolor="#f5f5f7",
-        paper_bgcolor="#f5f5f7",
+        plot_bgcolor="#f1f4f7",
+        paper_bgcolor="#f1f4f7",
         showlegend=False,
         font=dict(
-            family="SF Pro Text, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-            color="#1d1d1f",
+            family="Optimistic VF, Montserrat, Helvetica, Arial, Noto Sans, sans-serif",
+            color="#0a1317",
             size=13,
         ),
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, title=""),
@@ -1464,12 +1616,14 @@ def render_funnel(df: pd.DataFrame) -> None:
 
     stage_lookup = {label: column for label, column in FUNNEL_STAGE_OPTIONS}
     default_stages = ["点击量", "落地页浏览量", "发起结账次数", "购买次数"]
-    selected_labels = st.multiselect(
-        "选择漏斗环节",
-        list(stage_lookup.keys()),
-        default=default_stages,
-        help="按固定业务顺序生成漏斗；至少选择两个环节。",
-    )
+    stage_col, summary_col = st.columns([1.7, 0.8])
+    with stage_col:
+        selected_labels = st.multiselect(
+            "选择漏斗环节",
+            list(stage_lookup.keys()),
+            default=default_stages,
+            help="按固定业务顺序生成漏斗；至少选择两个环节。",
+        )
 
     ordered_labels = [label for label, _ in FUNNEL_STAGE_OPTIONS if label in selected_labels]
     if len(ordered_labels) < 2:
@@ -1485,6 +1639,9 @@ def render_funnel(df: pd.DataFrame) -> None:
     ]
     path_copy = " → ".join(ordered_labels)
     connector_count = len(stages) - 1
+    with summary_col:
+        st.caption(f"{len(stages)} 个环节 · {connector_count} 段转化率")
+        st.caption(path_copy)
     steps = pd.DataFrame(stages).rename(columns={"label": "环节", "value": "数量"})
     fig = build_funnel_figure(steps)
 
@@ -1565,8 +1722,8 @@ def render_dimension_rank(df: pd.DataFrame) -> None:
     fig.update_layout(
         height=max(420, min(820, len(ranked) * 34)),
         margin=dict(l=10, r=10, t=20, b=10),
-        plot_bgcolor="#fffefa",
-        paper_bgcolor="#fffefa",
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
         xaxis_title="花费 (USD)",
         yaxis_title="",
     )
@@ -1741,22 +1898,42 @@ def main() -> None:
     inject_css()
     render_header()
 
-    uploaded_file = st.file_uploader(
-        "上传 Meta 广告数据文件",
-        type=["csv", "xlsx", "xls"],
-        help="支持 Meta Ads Manager 导出的中文 CSV、Excel 文件。",
-    )
+    upload_col, option_col = st.columns([4, 1.25])
+    with upload_col:
+        uploaded_files = st.file_uploader(
+            "上传 Meta 广告数据文件",
+            type=["csv", "xlsx", "xls"],
+            accept_multiple_files=True,
+            help="支持 Meta Ads Manager 导出的中文 CSV、Excel 文件。",
+        )
+    with option_col:
+        dedupe_rows = st.checkbox(
+            "合并后去重",
+            value=True,
+            help="按所有真实数据列完全一致的行去重。",
+        )
 
-    if uploaded_file is None:
+    if not uploaded_files:
         st.info("请先上传 CSV 或 Excel 文件。上传后会自动生成 KPI、趋势、漏斗、排行和诊断建议。")
-        with st.expander("需要包含哪些字段？", expanded=True):
+        with st.expander("需要包含哪些字段？", expanded=False):
             st.write(
                 "建议至少包含：报告开始日期、已花费金额 (USD)、展示次数、链接点击量、加入购物车次数、结账发起次数、成效、广告花费回报 (ROAS) - 购物。"
             )
         return
 
     try:
-        raw_df = parse_uploaded_file(uploaded_file)
+        raw_df = parse_uploaded_files(uploaded_files)
+        before_dedupe_rows = len(raw_df)
+        if dedupe_rows:
+            dedupe_columns = [col for col in raw_df.columns if col != "_来源文件"]
+            raw_df = raw_df.drop_duplicates(subset=dedupe_columns)
+            removed_rows = before_dedupe_rows - len(raw_df)
+            if removed_rows:
+                st.info(f"已合并 {len(uploaded_files)} 个文件，并去除 {removed_rows:,} 行重复数据。")
+            else:
+                st.info(f"已合并 {len(uploaded_files)} 个文件，未发现重复行。")
+        else:
+            st.info(f"已合并 {len(uploaded_files)} 个文件，保留全部 {len(raw_df):,} 行。")
         df = preprocess(raw_df)
     except Exception as exc:
         st.error(f"数据读取或清洗失败：{exc}")
