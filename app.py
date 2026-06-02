@@ -25,6 +25,7 @@ CPM_COL = "CPM（千次展示费用） (USD)"
 CTR_ALL_COL = "点击率（全部）"
 ALL_CLICKS_COL = "点击量"
 CLICKS_COL = "链接点击量"
+LANDING_PAGE_VIEWS_COL = "落地页浏览量"
 ATC_COL = "加入购物车次数"
 CHECKOUT_COL = "结账发起次数"
 PURCHASES_COL = "成效"
@@ -40,6 +41,13 @@ CANONICAL_COLUMNS = {
     CTR_ALL_COL: ["点击率（全部）", "CTR (All)", "CTR"],
     ALL_CLICKS_COL: ["点击量", "点击次数", "全部点击量", "Clicks (all)", "Clicks"],
     CLICKS_COL: ["链接点击量", "链接点击", "Link clicks"],
+    LANDING_PAGE_VIEWS_COL: [
+        "落地页浏览量",
+        "落地页浏览",
+        "落地页查看量",
+        "Landing page views",
+        "Landing Page Views",
+    ],
     ATC_COL: ["加入购物车次数", "加入购物车", "Adds to cart", "Add to cart"],
     CHECKOUT_COL: ["结账发起次数", "发起结账", "Checkouts initiated", "Initiate checkout"],
     PURCHASES_COL: ["成效", "购买", "购物次数", "Purchases", "Results"],
@@ -55,6 +63,7 @@ NUMERIC_COLUMNS = [
     CTR_ALL_COL,
     ALL_CLICKS_COL,
     CLICKS_COL,
+    LANDING_PAGE_VIEWS_COL,
     ATC_COL,
     CHECKOUT_COL,
     PURCHASES_COL,
@@ -78,9 +87,9 @@ GLOSSARY = {
 
 FUNNEL_STAGE_OPTIONS = [
     ("点击量", ALL_CLICKS_COL),
-    ("链接点击量", CLICKS_COL),
+    ("落地页浏览量", LANDING_PAGE_VIEWS_COL),
     ("加购次数", ATC_COL),
-    ("结账次数", CHECKOUT_COL),
+    ("发起结账次数", CHECKOUT_COL),
     ("购买次数", PURCHASES_COL),
 ]
 
@@ -673,6 +682,7 @@ def build_daily_df(df: pd.DataFrame) -> pd.DataFrame:
                 REACH_COL: "sum",
                 ALL_CLICKS_COL: "sum",
                 CLICKS_COL: "sum",
+                LANDING_PAGE_VIEWS_COL: "sum",
                 ATC_COL: "sum",
                 CHECKOUT_COL: "sum",
                 PURCHASES_COL: "sum",
@@ -885,12 +895,16 @@ def build_funnel_figure(steps: pd.DataFrame) -> go.Figure:
         x="数量",
         y="环节",
         color="环节",
-        color_discrete_sequence=["#0066cc", "#4d9de0", "#8bbce8", "#c7d9ec"],
+        color_discrete_sequence=["#0066cc", "#4d9de0", "#8bbce8", "#c7d9ec", "#e4edf7"],
     )
-    fig.update_traces(textinfo="value")
+    fig.update_traces(
+        textinfo="value+percent previous",
+        texttemplate="%{value:,.0f}<br>%{percentPrevious}",
+        hovertemplate="%{y}<br>数量: %{x:,.0f}<br>相邻转化率: %{percentPrevious}<extra></extra>",
+    )
     fig.update_layout(
-        height=360,
-        margin=dict(l=4, r=4, t=8, b=4),
+        height=440,
+        margin=dict(l=8, r=8, t=12, b=8),
         plot_bgcolor="#f5f5f7",
         paper_bgcolor="#f5f5f7",
         showlegend=False,
@@ -954,7 +968,7 @@ def render_funnel(df: pd.DataFrame) -> None:
     cpa_term = glossary_term("CPA")
 
     stage_lookup = {label: column for label, column in FUNNEL_STAGE_OPTIONS}
-    default_stages = ["链接点击量", "加购次数", "结账次数", "购买次数"]
+    default_stages = ["点击量", "落地页浏览量", "发起结账次数", "购买次数"]
     selected_labels = st.multiselect(
         "选择漏斗环节",
         list(stage_lookup.keys()),
@@ -976,6 +990,8 @@ def render_funnel(df: pd.DataFrame) -> None:
     ]
     path_copy = " → ".join(ordered_labels)
     connector_count = len(stages) - 1
+    steps = pd.DataFrame(stages).rename(columns={"label": "环节", "value": "数量"})
+    fig = build_funnel_figure(steps)
 
     chart_col, metric_col = st.columns([1.7, 0.82])
     with chart_col:
@@ -989,7 +1005,7 @@ def render_funnel(df: pd.DataFrame) -> None:
             """,
             unsafe_allow_html=True,
         )
-        render_flow_funnel(stages)
+        st.plotly_chart(fig, use_container_width=True)
     with metric_col:
         st.markdown(
             f"""
