@@ -396,7 +396,7 @@ def inject_css() -> None:
         }
 
         [data-testid="stCheckbox"] {
-            margin-top: 18px;
+            margin-top: 0;
         }
 
         [data-testid="stCheckbox"] label {
@@ -424,6 +424,22 @@ def inject_css() -> None:
 
         [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] {
             gap: 6px;
+        }
+
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.control-card-tall) > div {
+            min-height: 148px !important;
+        }
+
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.control-card-tall) [data-baseweb="select"] > div {
+            min-height: 44px !important;
+        }
+
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.upload-panel-marker) > div {
+            padding-bottom: 8px !important;
+        }
+
+        .upload-panel-marker {
+            display: none;
         }
 
         .control-card-header {
@@ -948,11 +964,12 @@ def render_section_title(title_html: str) -> None:
     st.markdown(f'<div class="section-title">{title_html}</div>', unsafe_allow_html=True)
 
 
-def render_control_header(title: str, help_text: str) -> None:
+def render_control_header(title: str, help_text: str, marker_class: str = "") -> None:
+    marker_attr = f" {escape(marker_class)}" if marker_class else ""
     st.markdown(
         f"""
         <div class="control-card-header">
-            <div class="control-card-title">{escape(title)}</div>
+            <div class="control-card-title{marker_attr}">{escape(title)}</div>
             <span class="control-help" title="{escape(help_text)}">?</span>
         </div>
         """,
@@ -1479,6 +1496,7 @@ def render_custom_compare_panel(
             mode = st.radio(
                 "对比模式",
                 ["标准化对比", "原始数值对比"],
+                index=1,
                 horizontal=True,
                 label_visibility="collapsed",
                 key=f"{key_prefix}_mode",
@@ -1491,6 +1509,7 @@ def render_custom_compare_panel(
             render_control_header(
                 "选择要对比的数据",
                 "选择多个指标后，会在同一张图中按日期对比。",
+                "control-card-tall",
             )
             selected_labels = st.multiselect(
                 "选择要对比的数据",
@@ -1513,6 +1532,7 @@ def render_custom_compare_panel(
                 render_control_header(
                     "广告名称",
                     "切换到按广告名称对比后，可选择多个广告并用颜色、线型和端点区分。",
+                    "control-card-tall",
                 )
                 st.caption("总量对比会自动汇总所有广告。")
     if compare_scope == "按广告名称对比":
@@ -1530,6 +1550,7 @@ def render_custom_compare_panel(
                 render_control_header(
                     "选择广告名称",
                     "建议一次选择 3-5 个广告，图表更清楚。",
+                    "control-card-tall",
                 )
                 selected_ad_names = st.multiselect(
                     "选择广告名称",
@@ -1633,11 +1654,12 @@ def render_custom_compare_panel(
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    st.dataframe(
-        compare_df.sort_values(DATE_COL, ascending=False),
-        use_container_width=True,
-        hide_index=True,
-    )
+    with st.expander("查看本图明细数据", expanded=False):
+        st.dataframe(
+            compare_df.sort_values(DATE_COL, ascending=False),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 
 def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> None:
@@ -2043,20 +2065,21 @@ def main() -> None:
     inject_css()
     render_header()
 
-    upload_col, option_col = st.columns([4, 1.25])
-    with upload_col:
+    with st.container(border=True):
+        st.markdown('<div class="upload-panel-marker"></div>', unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "上传 Meta 广告数据文件",
             type=["csv", "xlsx", "xls"],
             accept_multiple_files=True,
             help="支持 Meta Ads Manager 导出的中文 CSV、Excel 文件。",
         )
-    with option_col:
-        dedupe_rows = st.checkbox(
-            "合并后去重",
-            value=True,
-            help="按所有真实数据列完全一致的行去重。",
-        )
+        _, dedupe_col = st.columns([1, 0.24])
+        with dedupe_col:
+            dedupe_rows = st.checkbox(
+                "合并后去重",
+                value=True,
+                help="按所有真实数据列完全一致的行去重。",
+            )
 
     if not uploaded_files:
         st.info("请先上传 CSV 或 Excel 文件。上传后会自动生成 KPI、趋势、漏斗、排行和诊断建议。")
