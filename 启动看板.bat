@@ -29,14 +29,15 @@ if errorlevel 1 (
 )
 
 echo [4/5] Installing dependencies...
-python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --timeout 120 --retries 5
 if errorlevel 1 (
     echo Failed to install dependencies.
+    echo You can retry later, or check whether the network can access pypi.tuna.tsinghua.edu.cn.
     pause
     exit /b 1
 )
 
 echo [5/5] Starting Meta Ads dashboard...
-streamlit run app.py
+streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 
 pause
