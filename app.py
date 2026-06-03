@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import escape
 from typing import Iterable
 
 import pandas as pd
@@ -410,6 +411,53 @@ def inject_css() -> None:
             gap: 10px;
         }
 
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            border: 1px solid var(--meta-hairline-soft) !important;
+            border-radius: 18px !important;
+            background: var(--meta-canvas) !important;
+            box-shadow: none !important;
+        }
+
+        [data-testid="stVerticalBlockBorderWrapper"] > div {
+            padding: 10px 12px 12px 12px !important;
+        }
+
+        [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] {
+            gap: 6px;
+        }
+
+        .control-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+
+        .control-card-title {
+            color: var(--meta-ink-deep);
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .control-help {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 999px;
+            background: #e8f1ff;
+            border: 1px solid rgba(0, 100, 224, 0.16);
+            color: var(--meta-primary-deep);
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1;
+            cursor: help;
+            flex: 0 0 auto;
+        }
+
         .abbr {
             position: relative;
             display: inline-flex;
@@ -790,29 +838,50 @@ def inject_css() -> None:
         }
 
         [data-testid="stRadio"] {
-            margin: 4px 0 18px 0;
+            margin: 0;
         }
 
-        [data-testid="stRadio"] > div {
-            gap: 8px;
+        [data-testid="stRadio"] [role="radiogroup"] {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 3px;
+            padding: 3px;
+            border: 1px solid var(--meta-hairline-soft);
+            border-radius: 9999px;
+            background: #eef2f6;
         }
 
         [data-testid="stRadio"] label {
-            min-height: 36px;
-            padding: 8px 14px;
-            border: 1px solid #e0e0e0;
+            justify-content: center;
+            min-height: 32px;
+            margin: 0;
+            padding: 6px 12px;
+            border: 0 !important;
             border-radius: 9999px;
-            background: #ffffff;
-            color: #1d1d1f;
+            background: transparent !important;
+            color: var(--meta-charcoal);
             font-family: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
-            font-size: 14px;
-            letter-spacing: -0.224px;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0;
+        }
+
+        [data-testid="stRadio"] label > div:first-child {
+            display: none !important;
+        }
+
+        [data-testid="stRadio"] label span,
+        [data-testid="stRadio"] label p {
+            color: inherit !important;
+            -webkit-text-fill-color: currentColor !important;
+            font-size: 13px;
+            font-weight: 800;
         }
 
         [data-testid="stRadio"] label:has(input:checked) {
-            border-color: var(--meta-primary);
-            color: var(--meta-primary);
-            background: #f5f9ff;
+            color: var(--meta-primary-deep) !important;
+            background: #ffffff !important;
+            box-shadow: 0 1px 2px rgba(10, 19, 23, 0.12), inset 0 0 0 1px rgba(0, 100, 224, 0.12);
         }
 
         @media (max-width: 980px) {
@@ -877,6 +946,18 @@ def glossary_term(abbr: str) -> str:
 
 def render_section_title(title_html: str) -> None:
     st.markdown(f'<div class="section-title">{title_html}</div>', unsafe_allow_html=True)
+
+
+def render_control_header(title: str, help_text: str) -> None:
+    st.markdown(
+        f"""
+        <div class="control-card-header">
+            <div class="control-card-title">{escape(title)}</div>
+            <span class="control-help" title="{escape(help_text)}">?</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def normalize_label(label: object) -> str:
@@ -1377,32 +1458,47 @@ def render_custom_compare_panel(
 
     scope_col, mode_col = st.columns([1, 1])
     with scope_col:
-        compare_scope = st.radio(
-            "对比范围",
-            ["总量对比", "按广告名称对比"],
-            horizontal=True,
-            help="总量对比会汇总所有广告；按广告名称对比会把不同广告名称拆成多条线。",
-            key=f"{key_prefix}_scope",
-        )
+        with st.container(border=True):
+            render_control_header(
+                "对比范围",
+                "总量对比会汇总所有广告；按广告名称对比会把不同广告名称拆成多条线。",
+            )
+            compare_scope = st.radio(
+                "对比范围",
+                ["总量对比", "按广告名称对比"],
+                horizontal=True,
+                label_visibility="collapsed",
+                key=f"{key_prefix}_scope",
+            )
     with mode_col:
-        mode = st.radio(
-            "对比模式",
-            ["标准化对比", "原始数值对比"],
-            horizontal=True,
-            help="标准化会把每个指标缩放到 0-100，适合不同量级一起比较。",
-            key=f"{key_prefix}_mode",
-        )
+        with st.container(border=True):
+            render_control_header(
+                "对比模式",
+                "标准化会把每个指标缩放到 0-100，适合不同量级一起比较。",
+            )
+            mode = st.radio(
+                "对比模式",
+                ["标准化对比", "原始数值对比"],
+                horizontal=True,
+                label_visibility="collapsed",
+                key=f"{key_prefix}_mode",
+            )
 
     default_labels = [label for label in ["花费 (USD)", "链接点击量", "购买次数", "CPA (USD)"] if label in available_options]
     metric_col, ad_col = st.columns([1.35, 1])
     with metric_col:
-        selected_labels = st.multiselect(
-            "选择要对比的数据",
-            list(available_options.keys()),
-            default=default_labels[: min(4, len(default_labels))],
-            help="选择多个指标后，会在同一张图中按日期对比。",
-            key=f"{key_prefix}_metrics",
-        )
+        with st.container(border=True):
+            render_control_header(
+                "选择要对比的数据",
+                "选择多个指标后，会在同一张图中按日期对比。",
+            )
+            selected_labels = st.multiselect(
+                "选择要对比的数据",
+                list(available_options.keys()),
+                default=default_labels[: min(4, len(default_labels))],
+                label_visibility="collapsed",
+                key=f"{key_prefix}_metrics",
+            )
     selected_labels = [label for label in selected_labels if label in available_options]
 
     if not selected_labels:
@@ -1413,7 +1509,12 @@ def render_custom_compare_panel(
     selected_ad_names: list[str] = []
     with ad_col:
         if compare_scope != "按广告名称对比":
-            st.caption("总量对比会自动汇总所有广告。")
+            with st.container(border=True):
+                render_control_header(
+                    "广告名称",
+                    "切换到按广告名称对比后，可选择多个广告并用颜色、线型和端点区分。",
+                )
+                st.caption("总量对比会自动汇总所有广告。")
     if compare_scope == "按广告名称对比":
         if ad_name_col is None:
             st.warning("当前数据没有检测到广告名称列，无法按广告名称对比。")
@@ -1425,13 +1526,18 @@ def render_custom_compare_panel(
         )
         ad_options = [str(name) for name in ad_summary[ad_name_col].dropna().tolist()]
         with ad_col:
-            selected_ad_names = st.multiselect(
-                "选择广告名称",
-                ad_options,
-                default=ad_options[: min(5, len(ad_options))],
-                help="建议一次选择 3-5 个广告，图表更清楚。",
-                key=f"{key_prefix}_ads",
-            )
+            with st.container(border=True):
+                render_control_header(
+                    "选择广告名称",
+                    "建议一次选择 3-5 个广告，图表更清楚。",
+                )
+                selected_ad_names = st.multiselect(
+                    "选择广告名称",
+                    ad_options,
+                    default=ad_options[: min(5, len(ad_options))],
+                    label_visibility="collapsed",
+                    key=f"{key_prefix}_ads",
+                )
         if not selected_ad_names:
             st.warning("请至少选择一个广告名称。")
             return
@@ -1538,14 +1644,19 @@ def render_custom_compare(filtered_df: pd.DataFrame, daily_df: pd.DataFrame) -> 
     available_options = get_compare_metric_options(daily_df)
     count_col, hint_col = st.columns([0.85, 3])
     with count_col:
-        panel_count = st.number_input(
-            "创建对比图数量",
-            min_value=1,
-            max_value=4,
-            value=1,
-            step=1,
-            help="可创建多个对比图，每个图保留独立的数据、广告和模式选择。",
-        )
+        with st.container(border=True):
+            render_control_header(
+                "创建对比图数量",
+                "可创建多个对比图，每个图保留独立的数据、广告和模式选择。",
+            )
+            panel_count = st.number_input(
+                "创建对比图数量",
+                min_value=1,
+                max_value=4,
+                value=1,
+                step=1,
+                label_visibility="collapsed",
+            )
     with hint_col:
         st.caption("每个对比图都有独立的数据、广告名称和显示模式选择。")
     for panel_index in range(int(panel_count)):
