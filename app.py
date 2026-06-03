@@ -438,6 +438,31 @@ def inject_css() -> None:
             padding-bottom: 8px !important;
         }
 
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.upload-panel-marker) [data-testid="stCheckbox"] {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: -2px;
+        }
+
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.upload-panel-marker) [data-testid="stCheckbox"] label {
+            min-height: 26px;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            color: var(--meta-charcoal);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.upload-panel-marker) [data-testid="stCheckbox"] label span,
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.upload-panel-marker) [data-testid="stCheckbox"] label p {
+            color: var(--meta-charcoal) !important;
+            -webkit-text-fill-color: var(--meta-charcoal) !important;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
         .upload-panel-marker {
             display: none;
         }
@@ -2073,13 +2098,11 @@ def main() -> None:
             accept_multiple_files=True,
             help="支持 Meta Ads Manager 导出的中文 CSV、Excel 文件。",
         )
-        _, dedupe_col = st.columns([1, 0.24])
-        with dedupe_col:
-            dedupe_rows = st.checkbox(
-                "合并后去重",
-                value=True,
-                help="按所有真实数据列完全一致的行去重。",
-            )
+        dedupe_rows = st.checkbox(
+            "合并后去重",
+            value=True,
+            help="按所有真实数据列完全一致的行去重。",
+        )
 
     if not uploaded_files:
         st.info("请先上传 CSV 或 Excel 文件。上传后会自动生成 KPI、趋势、漏斗、排行和诊断建议。")
